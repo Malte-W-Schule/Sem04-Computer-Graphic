@@ -1,2 +1,0 @@
-Blatt01/libs/
-.DS_Store
