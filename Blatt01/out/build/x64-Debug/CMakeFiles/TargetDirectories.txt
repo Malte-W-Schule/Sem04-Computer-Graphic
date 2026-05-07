@@ -1,0 +1,3 @@
+C:/Users/Sarah Kirchhof/Desktop/WICHTIGE_HSBI_SACHEN/viertes_semester/Grafik/Sem04-Computer-Graphic/Blatt01/out/build/x64-Debug/CMakeFiles/Blatt01.dir
+C:/Users/Sarah Kirchhof/Desktop/WICHTIGE_HSBI_SACHEN/viertes_semester/Grafik/Sem04-Computer-Graphic/Blatt01/out/build/x64-Debug/CMakeFiles/edit_cache.dir
+C:/Users/Sarah Kirchhof/Desktop/WICHTIGE_HSBI_SACHEN/viertes_semester/Grafik/Sem04-Computer-Graphic/Blatt01/out/build/x64-Debug/CMakeFiles/rebuild_cache.dir

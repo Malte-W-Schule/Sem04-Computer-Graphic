@@ -227,6 +227,7 @@ bool init()
     return false;
   }
 
+  std::cout << "Gib drei Farbwerte ein (immer einen + enter):" << std::endl;
   // Create all objects.
   float a;
   std::cin >> a;
@@ -320,7 +321,7 @@ void glutKeyboard (unsigned char keycode, int x, int y)
 void readInLoop() {
 	std::string command;
 	do {
-		std::cout << "CMY, HSV für eine Umrechnung oder exit um zum render Loop der Formen zu kommen" << std::endl;
+		std::cout << "CMY, HSV für eine Umrechnung oder exit, um zum render Loop der Formen zu kommen" << std::endl;
 		std::cin >> command;
         if (command == "CMY") { 
 			std::cout << "Gib die Werte für c, m, y ein" << std::endl;
@@ -567,9 +568,9 @@ glm::vec3 HSVtoRGB(glm::vec3 input) {
         }      //H must be < 1
 
         var_i = int(var_h);             //Or ... var_i = floor( var_h ); cuts of the decimal numbers
-        var_1 = v * (1.0f - s);                             //-> p
-        var_2 = v * (1.0f - s * (var_h - var_i));           //-> q ; f = var_h - var_i: extracts the decimal number
-        var_3 = v * (1.0f - s * (1.0f - (var_h - var_i)));  //-> t
+        var_1 = v * (1.0f - s);                             //-> p dominant color
+        var_2 = v * (1.0f - s * (var_h - var_i));           //-> q ; f = var_h - var_i: extracts the decimal number, fading color
+        var_3 = v * (1.0f - s * (1.0f - (var_h - var_i)));  //-> t, intensifying color
         
         if (var_i == 0) { var_r = v; var_g = var_3; var_b = var_1; }        //red -> yellow
         else if (var_i == 1) { var_r = var_2; var_g = v; var_b = var_1; }   //yellow -> green

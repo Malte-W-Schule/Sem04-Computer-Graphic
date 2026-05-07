@@ -1,0 +1,60 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"jsonFile" : "directory-.-Debug-d0094a50bb2071803777.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "2.6"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0
+					]
+				}
+			],
+			"name" : "Debug",
+			"projects" : 
+			[
+				{
+					"directoryIndexes" : 
+					[
+						0
+					],
+					"name" : "Blatt01",
+					"targetIndexes" : 
+					[
+						0
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "Blatt01::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-Blatt01-Debug-7720bd3251d33d2994a4.json",
+					"name" : "Blatt01",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "C:/Users/Sarah Kirchhof/Desktop/WICHTIGE_HSBI_SACHEN/viertes_semester/Grafik/Sem04-Computer-Graphic/Blatt01/out/build/x64-Debug",
+		"source" : "C:/Users/Sarah Kirchhof/Desktop/WICHTIGE_HSBI_SACHEN/viertes_semester/Grafik/Sem04-Computer-Graphic/Blatt01"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 8
+	}
+}
