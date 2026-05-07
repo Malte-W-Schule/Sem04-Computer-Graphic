@@ -470,6 +470,26 @@ glm::vec3 RGBtoHSV(glm::vec3 input) {
 
     float h = 0;
 
+    if (delta == 0) {
+        h = 0;
+        s = 0;
+    }
+    else {
+        if (v == r) {
+            h = 60 * ((g - b) / delta);
+        }
+        else if (v==g) {
+            h = 60 * (2 + (b - r) / delta);
+        }
+        else {
+            h = 60 * (4 + (r - g) / delta);
+        }
+        if (h < 0) {        //h is a minus value
+            h = h + 360.0f;  
+        }
+    }
+
+    /*
     if (delta == 0)                     //This is a gray, no chroma...
     {
         h = 0;
@@ -498,8 +518,7 @@ glm::vec3 RGBtoHSV(glm::vec3 input) {
             h -= 1;
         }
     }
-
-    h = h * 360;
+    */
 
     std::cout << "========== Ausgabe HSV (RGBtoHSV)===========" << std::endl;
     std::cout << h << "," << s << "," << v << std::endl;
@@ -542,22 +561,22 @@ glm::vec3 HSVtoRGB(glm::vec3 input) {
 	{
         
        
-        float var_h = (h/360.0f) * 6.0f;
-        if (var_h == 6.0f) {
+        float var_h = (h/360.0f) * 6.0f;    //dividing hue in 6 circle segments
+        if (var_h == 6.0f) {    //360 degree = 0 degree
             var_h = 0;
         }      //H must be < 1
 
-        var_i = int(var_h);             //Or ... var_i = floor( var_h )
-        var_1 = v * (1.0f - s);
-        var_2 = v * (1.0f - s * (var_h - var_i));
-        var_3 = v * (1.0f - s * (1.0f - (var_h - var_i)));
+        var_i = int(var_h);             //Or ... var_i = floor( var_h ); cuts of the decimal numbers
+        var_1 = v * (1.0f - s);                             //-> p
+        var_2 = v * (1.0f - s * (var_h - var_i));           //-> q ; f = var_h - var_i: extracts the decimal number
+        var_3 = v * (1.0f - s * (1.0f - (var_h - var_i)));  //-> t
         
-        if (var_i == 0) { var_r = v; var_g = var_3; var_b = var_1; }
-        else if (var_i == 1) { var_r = var_2; var_g = v; var_b = var_1; }
-        else if (var_i == 2) { var_r = var_1; var_g = v; var_b = var_3; }
-        else if (var_i == 3) { var_r = var_1; var_g = var_2; var_b = v; }
-        else if (var_i == 4) { var_r = var_3; var_g = var_1; var_b = v; }
-		else { var_r = v; var_g = var_1; var_b = var_2; }
+        if (var_i == 0) { var_r = v; var_g = var_3; var_b = var_1; }        //red -> yellow
+        else if (var_i == 1) { var_r = var_2; var_g = v; var_b = var_1; }   //yellow -> green
+        else if (var_i == 2) { var_r = var_1; var_g = v; var_b = var_3; }   //green -> cyan
+        else if (var_i == 3) { var_r = var_1; var_g = var_2; var_b = v; }   //cyan -> blue
+        else if (var_i == 4) { var_r = var_3; var_g = var_1; var_b = v; }   //blue -> magenta
+		else { var_r = v; var_g = var_1; var_b = var_2; }                   //magenta -> red
 
         r = var_r;
         g = var_g;
