@@ -25,6 +25,7 @@ glm::vec3 RGBtoHSV(glm::vec3 input);
 glm::vec3 RGBtoCMY(glm::vec3 input);
 glm::vec3 HSVtoRGB(glm::vec3 input);
 glm::vec3 HSVtoCMY(glm::vec3 input);
+void readInLoop();
 
 float min(glm::vec3 input);
 float max(glm::vec3 input);
@@ -69,7 +70,26 @@ public:
 
 Object triangle;
 Object quad;
+Object sphere;
 
+// ================================================================================= RENDER SPHERE =================================================================================
+void renderSphere()
+{   // Create mvp.
+    glm::mat4x4 mvp = projection * view * sphere.model;
+
+    // Bind the shader program and set uniform(s).
+    program.use();
+    program.setUniform("mvp", mvp);
+
+    // Bind vertex array object so we can render the 1 triangle.
+    glBindVertexArray(sphere.vao);
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    glDrawElements(GL_TRIANGLES, 24, GL_UNSIGNED_SHORT, 0);
+    glBindVertexArray(0);
+}
+    
+
+// ================================================================================= RENDER TRIANGLE =================================================================================
 void renderTriangle()
 {
   // Create mvp.
@@ -100,7 +120,98 @@ void renderQuad()
   glBindVertexArray(0);
 }
 
-void initTriangle()
+// ================================================================================= INIT SPHERE =================================================================================
+
+void initSphere() {
+	// start (0,0,0)
+	   //ecken, 5 | 4 mitte | 1 oben | 1 unten (start)
+
+	   // 0 0 0 | 1 1 1 | 1 1 -1 | -1 1 1 | -1 1 -1 | 0 2 0
+       
+	   // Die 6 Eckpunkte
+	std::vector<glm::vec3> sphereVerticesold = { {
+		{ 0.0f,  1.0f,  0.0f}, // 0: Oben
+		{ 0.0f,  -1.0f,  0.0f}, // 1: Unten
+		{ -1.0f,  -0.1f,  1.0f}, // 2: Rechts
+		{1.0f,  0.1f,  -1.0f}, // 3: Links
+		{ 1.0f,  -0.1f,  1.0f}, // 4: Vorne
+		{ -1.0f,  0.1f, -1.0f}  // 5: Hinten
+	} };
+
+	std::vector<glm::vec3> sphereVertices = { {
+	{  0.0f,       1.0f,   0.0f },       // 0: Oben (bleibt gleich, da auf der Drehachse)
+	{  0.0f,      -1.0f,   0.0f },       // 1: Unten (bleibt gleich, da auf der Drehachse)
+	{  0.245576f, -0.1f,   1.392728f },  // 2: Rechts
+	{ -0.245576f,  0.1f,  -1.392728f },  // 3: Links
+	{  1.392728f, 0.0f,  -0.245576f },  // 4: Vorne
+	{ -1.392728f,  0.0f,   0.245576f }   // 5: Hinten
+} };
+
+	    // 24 Indizes für die 8 Dreiecke 
+    std::vector<GLushort> sphereIndices = {
+        // Obere Hälfte
+        0, 4, 2,
+        0, 2, 5,
+        0, 5, 3,
+        0, 3, 4,
+
+        // Untere Hälfte
+        1, 2, 4,
+        1, 5, 2,
+        1, 3, 5,
+        1, 4, 3 };
+    
+    //alles Rot
+    const std::vector<glm::vec3> colors = { {
+        { 1.0f,  0.0f,  0.0f},
+        { 1.0f,  0.0f,  0.0f}, 
+        { 1.0f,  0.0f,  0.0f}, 
+        { 1.0f,  0.0f,  0.0f}, 
+        { 1.0f,  1.0f,  0.0f}, 
+        { 0.0f,  1.0f,  0.0f}  
+    } };
+
+    GLuint programId = program.getHandle();
+    GLuint pos;
+
+    // Step 0: Create vertex array object.
+    glGenVertexArrays(1, &sphere.vao);
+    glBindVertexArray(sphere.vao);
+
+    // Step 1: Create vertex buffer object for position attribute and bind it to the associated "shader attribute".
+    glGenBuffers(1, &sphere.positionBuffer);
+    glBindBuffer(GL_ARRAY_BUFFER, sphere.positionBuffer);
+    glBufferData(GL_ARRAY_BUFFER, sphereVertices.size() * sizeof(glm::vec3), sphereVertices.data(), GL_STATIC_DRAW);
+
+    // Bind it to position.
+    pos = glGetAttribLocation(programId, "position");
+    glEnableVertexAttribArray(pos);
+    glVertexAttribPointer(pos, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+    // Step 2: Create vertex buffer object for color attribute and bind it to...
+    glGenBuffers(1, &sphere.colorBuffer);
+    glBindBuffer(GL_ARRAY_BUFFER, sphere.colorBuffer);
+    glBufferData(GL_ARRAY_BUFFER, colors.size() * sizeof(glm::vec3), colors.data(), GL_STATIC_DRAW);
+
+    // Bind it to color.
+    pos = glGetAttribLocation(programId, "color");
+    glEnableVertexAttribArray(pos);
+    glVertexAttribPointer(pos, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+    // Step 3: Create vertex buffer object for indices. No binding needed here.
+    glGenBuffers(1, &sphere.indexBuffer);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, sphere.indexBuffer);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sphereIndices.size() * sizeof(GLushort), sphereIndices.data(), GL_STATIC_DRAW);
+
+    // Unbind vertex array object (back to default).
+    glBindVertexArray(0);
+
+    // Modify model matrix.Kugel liegt jetzt im Mittelpunkt
+    sphere.model = glm::mat4(1.0f);
+}
+
+// ================================================================================= INIT TRIANGLE =================================================================================
+void initTriangle()  
 {
     glm::vec3 cmy(0.0f, 1.0f, 1.0f);
 
@@ -148,6 +259,9 @@ void initTriangle()
   triangle.model = glm::translate(glm::mat4(1.0f), glm::vec3(-1.25f, 0.0f, 0.0f));
 }
 
+
+
+// ================================================================================= INIT QUAD =================================================================================
 void initQuad(std::vector<glm::vec3>& colors)
 {
   // Construct triangle. These vectors can go out of scope after we have send all data to the graphics card.
@@ -195,6 +309,8 @@ void initQuad(std::vector<glm::vec3>& colors)
   quad.model = glm::translate(glm::mat4(1.0f), glm::vec3(1.25f, 0.0f, 0.0f));
 }
 
+
+// ================================================================================= INIT =================================================================================
 /*
  Initialization. Should return true if everything is ok and false if something went wrong.
  */
@@ -227,6 +343,7 @@ bool init()
     return false;
   }
 
+  /*
   std::cout << "Gib drei Farbwerte ein (immer einen + enter):" << std::endl;
   // Create all objects.
   float a;
@@ -251,14 +368,18 @@ bool init()
 	  // hsv
       color = HSVtoRGB(color);
   }
+  */
 
 
-  std::vector<glm::vec3> colors = { color,color,color,color };
-  initQuad(colors);
-  initTriangle();
+  //std::vector<glm::vec3> colors = { color,color,color,color };
+  //initQuad(colors);
+  //initTriangle();
+  initSphere();
   return true;
 }
 
+
+// ================================================================================= RENDER =================================================================================
 /*
  Rendering.
  */
@@ -266,8 +387,9 @@ void render()
 {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	renderTriangle();
+	//renderTriangle();
 	renderQuad();
+    renderSphere();
 }
 
 void glutDisplay ()
@@ -276,6 +398,8 @@ void glutDisplay ()
    glutSwapBuffers();
 }
 
+
+// ================================================================================= GLUT =================================================================================
 /*
  Resize callback.
  */
@@ -318,42 +442,9 @@ void glutKeyboard (unsigned char keycode, int x, int y)
   glutPostRedisplay();
 }
 
-void readInLoop() {
-	std::string command;
-	do {
-		std::cout << "CMY, HSV für eine Umrechnung oder exit, um zum render Loop der Formen zu kommen" << std::endl;
-		std::cin >> command;
-        if (command == "CMY") { 
-			std::cout << "Gib die Werte für c, m, y ein" << std::endl;
-            float c;
-            std::cin >> c;
-			float m;
-			std::cin >> m;
-			float y;
-			std::cin >> y;
 
-            glm::vec3 input(c, m, y);
-            
-            //CMYtoRGB(input);
-            CMYtoHSV(input);
-        }
-		if (command == "HSV") {
-			std::cout << "Gib die Werte für r, g, b ein" << std::endl;
-			float r;
-			std::cin >> r;
-			float g;
-			std::cin >> g;
-			float b;
-			std::cin >> b;
 
-			glm::vec3 input(r, g, b);
-            //HSVtoRGB(input);
-            HSVtoCMY(input);
-        }
-	} while (command != "exit");
-
-}
-
+// ================================================================================= MAIN =================================================================================
 
 int main(int argc, char** argv)
 {
@@ -398,7 +489,7 @@ int main(int argc, char** argv)
   
   glutKeyboardFunc(glutKeyboard);
   
-  readInLoop();
+  //readInLoop();
 
   //Werte abfragen und in eine Matrix speichern
   // init vertex-array-objects.
@@ -406,22 +497,6 @@ int main(int argc, char** argv)
   if (!result) {
     return -2;
   }
-
-  // ======================================================================= TEST Start =======================================================================
-  //RGBtoHSV(glm::vec3(0.4f, 0.09f, 0.1f));
-  //CMYtoHSV(glm::vec3(0.6f, 0.77f, 0.75f));
-
-
-  glm::vec3 rgb1 = glm::vec3(0.4f, 0.3f, 0.1f);
-  std::cout << rgb1.x << "," << rgb1.y << "," << rgb1.z << std::endl;
-
-  glm::vec3 cmy1 = RGBtoCMY(rgb1);
-  glm::vec3 hsv1 = CMYtoHSV(cmy1);
-  HSVtoRGB(hsv1);
-
-  // ======================================================================= TEST End =======================================================================
-
-  
 
   // GLUT: Loop until the user closes the window
   // rendering & event handling
@@ -433,6 +508,47 @@ int main(int argc, char** argv)
   
   return 0;
 }
+
+
+// ======================================================================= Blatt01 Start =======================================================================
+void readInLoop() {
+	std::string command;
+	do {
+		std::cout << "CMY, HSV für eine Umrechnung oder exit, um zum render Loop der Formen zu kommen" << std::endl;
+		std::cin >> command;
+		if (command == "CMY") {
+			std::cout << "Gib die Werte für c, m, y ein" << std::endl;
+			float c;
+			std::cin >> c;
+			float m;
+			std::cin >> m;
+			float y;
+			std::cin >> y;
+
+			glm::vec3 input(c, m, y);
+
+			//CMYtoRGB(input);
+			CMYtoHSV(input);
+		}
+		if (command == "HSV") {
+			std::cout << "Gib die Werte für r, g, b ein" << std::endl;
+			float r;
+			std::cin >> r;
+			float g;
+			std::cin >> g;
+			float b;
+			std::cin >> b;
+
+			glm::vec3 input(r, g, b);
+			//HSVtoRGB(input);
+			HSVtoCMY(input);
+		}
+	} while (command != "exit");
+
+}
+
+
+
 
 glm::vec3 CMYtoRGB(glm::vec3 input) {
     float c = input.x;
@@ -490,37 +606,7 @@ glm::vec3 RGBtoHSV(glm::vec3 input) {
         }
     }
 
-    /*
-    if (delta == 0)                     //This is a gray, no chroma...
-    {
-        h = 0;
-        s = 0;
-    }
-    else                                    //Chromatic data...
-    {
-        float del_R = (((v - r) / 6.0f) + (delta / 2.0f)) / delta;
-        float del_G = (((v - g) / 6.0f) + (delta / 2.0f)) / delta;
-        float del_B = (((v - b) / 6.0f) + (delta / 2.0f)) / delta;
-
-        if (r == v) {
-            h = del_B - del_G;
-        }
-        else if (g == v) {
-            h = (1.0f / 3.0f) + del_R - del_B;
-        }
-        else if (b == v) {
-            h = (2.0f / 3.0f) + del_G - del_R;
-        }
-
-        if (h < 0.0f) {
-            h += 1;
-        }
-        if (h > 1.0f) {
-            h -= 1;
-        }
-    }
-    */
-
+    
     std::cout << "========== Ausgabe HSV (RGBtoHSV)===========" << std::endl;
     std::cout << h << "," << s << "," << v << std::endl;
 
@@ -634,3 +720,10 @@ float max(glm::vec3 input) {
         return input.z;
     }
 }
+
+// ======================================================================= Blatt01 End =======================================================================
+
+
+// ======================================================================= Blatt0 Start =======================================================================
+
+
