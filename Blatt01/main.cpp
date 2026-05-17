@@ -38,6 +38,11 @@ glm::mat4x4 projection;
 float zNear = 0.1f;
 float zFar  = 100.0f;
 
+
+// ================================================================================= Size =================================================================================
+float size = 1;
+int n = 0;
+
 /*
 Struct to hold data for object rendering.
 */
@@ -121,34 +126,50 @@ void renderQuad()
 }
 
 // ================================================================================= INIT SPHERE =================================================================================
+void initSphere(float size) {
+    // start (0,0,0)
+       //ecken, 5 | 4 mitte | 1 oben | 1 unten (start)
 
-void initSphere() {
-	// start (0,0,0)
-	   //ecken, 5 | 4 mitte | 1 oben | 1 unten (start)
+       // 0 0 0 | 1 1 1 | 1 1 -1 | -1 1 1 | -1 1 -1 | 0 2 0
 
-	   // 0 0 0 | 1 1 1 | 1 1 -1 | -1 1 1 | -1 1 -1 | 0 2 0
-       
-	   // Die 6 Eckpunkte
-	std::vector<glm::vec3> sphereVerticesold = { {
-		{ 0.0f,  1.0f,  0.0f}, // 0: Oben
-		{ 0.0f,  -1.0f,  0.0f}, // 1: Unten
-		{ -1.0f,  -0.1f,  1.0f}, // 2: Rechts
-		{1.0f,  0.1f,  -1.0f}, // 3: Links
-		{ 1.0f,  -0.1f,  1.0f}, // 4: Vorne
-		{ -1.0f,  0.1f, -1.0f}  // 5: Hinten
-	} };
 
-	std::vector<glm::vec3> sphereVertices = { {
-	{  0.0f,       1.0f,   0.0f },       // 0: Oben (bleibt gleich, da auf der Drehachse)
-	{  0.0f,      -1.0f,   0.0f },       // 1: Unten (bleibt gleich, da auf der Drehachse)
-	{  0.245576f, -0.1f,   1.392728f },  // 2: Rechts
-	{ -0.245576f,  0.1f,  -1.392728f },  // 3: Links
-	{  1.392728f, 0.0f,  -0.245576f },  // 4: Vorne
-	{ -1.392728f,  0.0f,   0.245576f }   // 5: Hinten
-} };
 
-	    // 24 Indizes für die 8 Dreiecke 
-    std::vector<GLushort> sphereIndices = {
+
+
+    std::vector<glm::vec3> sphereVertices;
+    std::vector<GLushort> sphereIndices;
+
+    std::vector<glm::vec3> Skalierungsmatrix;
+
+    // Die 6 Eckpunkte
+    std::vector<glm::vec3> sphereVerticesold = { {
+        { 0.0f,  1.0f,  0.0f}, // 0: Oben
+        { 0.0f,  -1.0f,  0.0f}, // 1: Unten
+        { -1.0f,  -0.1f,  1.0f}, // 2: Rechts
+        {1.0f,  0.1f,  -1.0f}, // 3: Links
+        { 1.0f,  -0.1f,  1.0f}, // 4: Vorne
+        { -1.0f,  0.1f, -1.0f}  // 5: Hinten
+    } };
+
+
+    // === Startpunkt rotiert um 50°===
+
+    std::vector<glm::vec3> sphereVerticesWithoutSubdivision = { {
+    {  0.0f,       1.0f,   0.0f },       // 0: Oben (bleibt gleich, da auf der Drehachse)
+    {  0.0f,      -1.0f,   0.0f },       // 1: Unten (bleibt gleich, da auf der Drehachse)
+    {  0.245576f, -0.1f,   1.392728f },  // 2: Rechts
+    { -0.245576f,  0.1f,  -1.392728f },  // 3: Links
+    {  1.392728f, 0.0f,  -0.245576f },   // 4: Vorne
+    { -1.392728f,  0.0f,   0.245576f }   // 5: Hinten
+    } };
+
+
+
+
+    for (glm::vec3& v : sphereVertices) v *= size;
+
+    // 24 Indizes für die 8 Dreiecke 
+    std::vector<GLushort> sphereIndicesWithoutSubdivision = {
         // Obere Hälfte
         0, 4, 2,
         0, 2, 5,
@@ -160,7 +181,16 @@ void initSphere() {
         1, 5, 2,
         1, 3, 5,
         1, 4, 3 };
-    
+
+    if (n == 0) {
+        sphereVertices = sphereVerticesWithoutSubdivision;
+		sphereIndices = sphereIndicesWithoutSubdivision;
+    }
+    else(
+        sphereVertices = calcSubDivideTriangle();
+        //sphereIndices???
+
+
     //alles Rot
     const std::vector<glm::vec3> colors = { {
         { 1.0f,  0.0f,  0.0f},
@@ -170,6 +200,7 @@ void initSphere() {
         { 1.0f,  1.0f,  0.0f}, 
         { 0.0f,  1.0f,  0.0f}  
     } };
+
 
     GLuint programId = program.getHandle();
     GLuint pos;
@@ -209,6 +240,64 @@ void initSphere() {
     // Modify model matrix.Kugel liegt jetzt im Mittelpunkt
     sphere.model = glm::mat4(1.0f);
 }
+
+
+std::vector<glm::vec3> calcSubDivideTriangle(int n, glm::vec3 v1, glm::vec3 v2, glm::vec3 v3)
+{
+	std::vector<glm::vec3> subTriangles;
+
+	// d ist die Anzahl der Segmente pro Kante (z.B. n=1 bedeutet d=2 Segmente)
+	float d = static_cast<float>(n + 1);
+
+	// richtungsvektoren ausgehend von V1
+	glm::vec3 toTopLeftV    = (v2 - v1) / d; 
+	glm::vec3 toLeftV       = (v3 - v1) / d; 
+	glm::vec3 toTopRightV   = (v2 - v3) / d; 
+
+	for (int i = 0; i <= n ; i++)
+	{
+		// Der Startpunkt für die aktuelle Reihe (liegt auf der Kante V1 -> V2)
+		glm::vec3 rowStartV1 = v1 + (static_cast<float>(i) * toTopLeftV);
+        
+		int triangleCountInRow = ((n + 1) - i) * 2 - 1;
+
+		// Innere Schleife: Zick-Zack durch die aktuelle Reihe
+		for (int y = 0; y < triangleCountInRow; y++)
+		{
+			// Hilfsvariable für die Schritt-Anzahl nach links
+			float stepIndex = static_cast<float> (y / 2);                           // hmhm
+
+			glm::vec3 currentV1 ;     
+			glm::vec3 currentV2 ;
+			glm::vec3 currentV3 ;
+
+			if (y % 2 == 0)
+			{
+				// 1. GERADE: "Normales" Dreieck (zeigt nach oben Delta)
+				glm::vec3 currentV1 = rowStartV1 + (stepIndex * toLeftV);
+				glm::vec3 currentV3 = currentV1 + toLeftV;
+				glm::vec3 currentV2 = currentV1 + toTopLeftV;
+			}
+			else
+			{
+                glm::vec3 currentV1 = rowStartV1 + ((stepIndex + 1.0f) * toLeftV);      //hier nochmal drüber gucken ob v1 jetzt past
+                glm::vec3 currentV2 = rowStartV1 + toTopRightV;
+				glm::vec3 currentV3 = currentV1 + toTopLeftV;
+
+				// In Dreiecksliste einfügen (Uhrzeigersinn beachten!)       // wie adden in "sub" triangle liste?
+				
+			}
+
+			// In Dreiecksliste einfügen                                    // wie adden in "sub" triangle liste?
+			subTriangles.push_back(currentV1);
+			subTriangles.push_back(currentV2);
+			subTriangles.push_back(currentV3);
+		}
+	}
+
+	return subTriangles;
+}
+
 
 // ================================================================================= INIT TRIANGLE =================================================================================
 void initTriangle()  
@@ -374,7 +463,8 @@ bool init()
   //std::vector<glm::vec3> colors = { color,color,color,color };
   //initQuad(colors);
   //initTriangle();
-  initSphere();
+
+  initSphere(1.0f);
   return true;
 }
 
@@ -388,7 +478,7 @@ void render()
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	//renderTriangle();
-	renderQuad();
+	//renderQuad();
     renderSphere();
 }
 
@@ -413,6 +503,8 @@ void glutResize (int width, int height)
   projection = glm::perspective(45.0f, (float) width / height, zNear, zFar);
 }
 
+
+// ================================================================================= GLUT Keyboard =================================================================================
 /*
  Callback for char input.
  */
@@ -424,10 +516,16 @@ void glutKeyboard (unsigned char keycode, int x, int y)
     return;
     
   case '+':
-    // do something
+    if (n == 4) { break; }
+    n += 1
+    initSphere(1.0f); //Größe nicht verändern
+    
     break;
   case '-':
-    // do something
+	if (n == 0) { break; }
+	n -= 1
+	initSphere(1.0f); //Größe nicht verändern
+    
     break;
   case 'x':
     // do something
@@ -438,6 +536,20 @@ void glutKeyboard (unsigned char keycode, int x, int y)
   case 'z':
     // do something
     break;
+  case 'r':
+      if (size <= 0.5) {
+          break;
+      }
+      size = size - 0.1;
+	  initSphere(size);
+	  break;
+  case 'R':
+      if(size>1.5){
+          break;
+      }
+	  size = size + 0.1;
+	  initSphere(size);
+	  break;
   }
   glutPostRedisplay();
 }
@@ -485,7 +597,7 @@ int main(int argc, char** argv)
   // GLUT: Set callbacks for events.
   glutReshapeFunc(glutResize);
   glutDisplayFunc(glutDisplay);
-  //glutIdleFunc   (glutDisplay); // redisplay when idle
+  glutIdleFunc   (glutDisplay); // redisplay when idle
   
   glutKeyboardFunc(glutKeyboard);
   
@@ -546,8 +658,6 @@ void readInLoop() {
 	} while (command != "exit");
 
 }
-
-
 
 
 glm::vec3 CMYtoRGB(glm::vec3 input) {
