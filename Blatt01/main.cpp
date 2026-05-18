@@ -38,10 +38,13 @@ glm::mat4x4 projection;
 float zNear = 0.1f;
 float zFar  = 100.0f;
 
+std::vector<GLushort> calcIndices(std::vector<glm::vec3> subTriangles);
+std::vector<glm::vec3> calcSubDivideTriangle(glm::vec3 v1, glm::vec3 v2, glm::vec3 v3);
+
 
 // ================================================================================= Size =================================================================================
 float size = 1;
-int n = 0;
+int n = 10;
 
 /*
 Struct to hold data for object rendering.
@@ -89,7 +92,7 @@ void renderSphere()
     // Bind vertex array object so we can render the 1 triangle.
     glBindVertexArray(sphere.vao);
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-    glDrawElements(GL_TRIANGLES, 24, GL_UNSIGNED_SHORT, 0);
+    glDrawElements(GL_TRIANGLES, (n+1)*(n+1)*3 , GL_UNSIGNED_SHORT, 0);
     glBindVertexArray(0);
 }
     
@@ -132,13 +135,6 @@ void initSphere(float size) {
 
        // 0 0 0 | 1 1 1 | 1 1 -1 | -1 1 1 | -1 1 -1 | 0 2 0
 
-
-
-
-
-    std::vector<glm::vec3> sphereVertices;
-    std::vector<GLushort> sphereIndices;
-
     std::vector<glm::vec3> Skalierungsmatrix;
 
     // Die 6 Eckpunkte
@@ -154,19 +150,15 @@ void initSphere(float size) {
 
     // === Startpunkt rotiert um 50°===
 
-    std::vector<glm::vec3> sphereVerticesWithoutSubdivision = { {
+    std::vector<glm::vec3> sphereVerticesWithoutSubdivision = { 
     {  0.0f,       1.0f,   0.0f },       // 0: Oben (bleibt gleich, da auf der Drehachse)
     {  0.0f,      -1.0f,   0.0f },       // 1: Unten (bleibt gleich, da auf der Drehachse)
     {  0.245576f, -0.1f,   1.392728f },  // 2: Rechts
     { -0.245576f,  0.1f,  -1.392728f },  // 3: Links
     {  1.392728f, 0.0f,  -0.245576f },   // 4: Vorne
     { -1.392728f,  0.0f,   0.245576f }   // 5: Hinten
-    } };
+   };
 
-
-
-
-    for (glm::vec3& v : sphereVertices) v *= size;
 
     // 24 Indizes für die 8 Dreiecke 
     std::vector<GLushort> sphereIndicesWithoutSubdivision = {
@@ -182,18 +174,17 @@ void initSphere(float size) {
         1, 3, 5,
         1, 4, 3 };
 
-    if (n == 0) {
-        sphereVertices = sphereVerticesWithoutSubdivision;
-		sphereIndices = sphereIndicesWithoutSubdivision;
-    }
-    else(
-        sphereVertices = calcSubDivideTriangle();
-        //sphereIndices???
 
+    std::cout << "hallo" << std::endl;
+    
+    std::vector<glm::vec3> sphereVertices = calcSubDivideTriangle(sphereVerticesold[0], sphereVerticesold[2], sphereVerticesold[4]);
+    std::vector<GLushort> sphereIndices = calcIndices(sphereVertices);
+    
+    for (glm::vec3& v : sphereVertices) v *= size;
 
     //alles Rot
     const std::vector<glm::vec3> colors = { {
-        { 1.0f,  0.0f,  0.0f},
+        { 1.0f,  1.0f,  0.0f},
         { 1.0f,  0.0f,  0.0f}, 
         { 1.0f,  0.0f,  0.0f}, 
         { 1.0f,  0.0f,  0.0f}, 
@@ -241,8 +232,63 @@ void initSphere(float size) {
     sphere.model = glm::mat4(1.0f);
 }
 
+std::vector<GLushort> calcIndices(std::vector<glm::vec3> subTriangles) {
+    std::vector<GLushort> sphereIndicesWithoutSubdivision;
 
-std::vector<glm::vec3> calcSubDivideTriangle(int n, glm::vec3 v1, glm::vec3 v2, glm::vec3 v3)
+    int weirdIndexCounter = 0;
+
+    for (int y = 0; y <= n; y++)
+    {
+        int countRow = (n + 2 - y);
+
+        for (int x = 0; x < countRow - 1; x++)
+        {
+            int V1 = weirdIndexCounter + x;
+            int V2 = V1 + countRow;
+            int V3 = V1 + 1;
+
+            // Dreieck nach unten
+            sphereIndicesWithoutSubdivision.push_back(V1);
+            sphereIndicesWithoutSubdivision.push_back(V2);
+            sphereIndicesWithoutSubdivision.push_back(V3);
+
+            // Dreieck nach oben
+            if (x != 0)
+            {
+                int Vu1 = V1;
+                int Vu2 = V2 - 1;
+                int Vu3 = V2;
+
+                sphereIndicesWithoutSubdivision.push_back(Vu1);
+                sphereIndicesWithoutSubdivision.push_back(Vu2);
+                sphereIndicesWithoutSubdivision.push_back(Vu3);
+            }
+        }
+
+        weirdIndexCounter += countRow;
+    }
+
+    /*
+    if (n == 2) {
+        sphereIndicesWithoutSubdivision = {
+        // Obere Hälfte
+        0, 4, 1,
+        1, 5, 2,
+        2, 5, 6,
+        2, 6, 3,
+
+        // Untere Hälfte
+        4, 7, 5,
+        5, 7, 8,
+        5, 8, 6,
+        7, 9, 8 }; 
+    }*/
+
+    return sphereIndicesWithoutSubdivision;
+}
+
+
+std::vector<glm::vec3> calcSubDivideTriangle(glm::vec3 v1, glm::vec3 v2, glm::vec3 v3)
 {
 	std::vector<glm::vec3> subTriangles;
 
@@ -252,47 +298,23 @@ std::vector<glm::vec3> calcSubDivideTriangle(int n, glm::vec3 v1, glm::vec3 v2, 
 	// richtungsvektoren ausgehend von V1
 	glm::vec3 toTopLeftV    = (v2 - v1) / d; 
 	glm::vec3 toLeftV       = (v3 - v1) / d; 
-	glm::vec3 toTopRightV   = (v2 - v3) / d; 
+    glm::vec3 start;
+    
 
-	for (int i = 0; i <= n ; i++)
-	{
-		// Der Startpunkt für die aktuelle Reihe (liegt auf der Kante V1 -> V2)
+	for (int i = 0; i <= n + 1 ; i++)
+    {
+        start = v1 + (float(i) * toTopLeftV);
+
 		glm::vec3 rowStartV1 = v1 + (static_cast<float>(i) * toTopLeftV);
         
-		int triangleCountInRow = ((n + 1) - i) * 2 - 1;
+        int triangleCountInRow = n + 2 - i;
 
-		// Innere Schleife: Zick-Zack durch die aktuelle Reihe
 		for (int y = 0; y < triangleCountInRow; y++)
 		{
-			// Hilfsvariable für die Schritt-Anzahl nach links
-			float stepIndex = static_cast<float> (y / 2);                           // hmhm
-
-			glm::vec3 currentV1 ;     
-			glm::vec3 currentV2 ;
-			glm::vec3 currentV3 ;
-
-			if (y % 2 == 0)
-			{
-				// 1. GERADE: "Normales" Dreieck (zeigt nach oben Delta)
-				glm::vec3 currentV1 = rowStartV1 + (stepIndex * toLeftV);
-				glm::vec3 currentV3 = currentV1 + toLeftV;
-				glm::vec3 currentV2 = currentV1 + toTopLeftV;
-			}
-			else
-			{
-                glm::vec3 currentV1 = rowStartV1 + ((stepIndex + 1.0f) * toLeftV);      //hier nochmal drüber gucken ob v1 jetzt past
-                glm::vec3 currentV2 = rowStartV1 + toTopRightV;
-				glm::vec3 currentV3 = currentV1 + toTopLeftV;
-
-				// In Dreiecksliste einfügen (Uhrzeigersinn beachten!)       // wie adden in "sub" triangle liste?
-				
-			}
-
-			// In Dreiecksliste einfügen                                    // wie adden in "sub" triangle liste?
-			subTriangles.push_back(currentV1);
-			subTriangles.push_back(currentV2);
-			subTriangles.push_back(currentV3);
+            glm::vec3 currentPoint = start + (float(y) * toLeftV);
+            subTriangles.push_back(currentPoint);
 		}
+        
 	}
 
 	return subTriangles;
@@ -517,14 +539,14 @@ void glutKeyboard (unsigned char keycode, int x, int y)
     
   case '+':
     if (n == 4) { break; }
-    n += 1
-    initSphere(1.0f); //Größe nicht verändern
+    n += 1;
+    //initSphere(1.0f); //Größe nicht verändern
     
     break;
   case '-':
 	if (n == 0) { break; }
-	n -= 1
-	initSphere(1.0f); //Größe nicht verändern
+    n -= 1;
+	//initSphere(1.0f); //Größe nicht verändern
     
     break;
   case 'x':
