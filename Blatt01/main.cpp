@@ -324,7 +324,7 @@ std::vector<glm::vec3> calcSphereVertices(glm::vec3 v1, glm::vec3 v2, glm::vec3 
     glm::vec3 newVertice;
 
     for (int i = 0; i <= n+1; i++)
-    {   //geht hoch, also rotieren um die y achse
+    {   //geht hoch, also rotieren um die x achse
         newVertice = rotateVec(vectorCenterToCornerPoint, degree*i, glm::vec3(1, 0, 0));
         //aus dem relativen Punkt zum Center einen Punkt im globalen Koordinatensystem machen
         newVertice = newVertice + center; 
