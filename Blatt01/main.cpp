@@ -42,14 +42,16 @@ float zFar  = 100.0f;
 
 std::vector<GLushort> calcIndices(std::vector<glm::vec3> subTriangles);
 std::vector<glm::vec3> calcSubDivideTriangle(glm::vec3 v1, glm::vec3 v2, glm::vec3 v3);
-std::vector<glm::vec3> calcSphereVertices(glm::vec3 v1, glm::vec3 v2, glm::vec3 v3, glm::vec3 center);
-glm::vec3 rotatePoint(glm::vec3 start, int amount, glm::mat4 rotationMatrix);
-glm::vec3 rotateVec(glm::vec3 origin, float degree, glm::vec3 axis);
+std::vector<glm::vec3> calcSphereVertices(std::vector<glm::vec3> sphereVerticesWithoutSubdivision, std::vector<GLushort> sphereIndicesWithoutSubdivision, glm::vec3 center);
+void renderSphere();
+void initSphere(float size);
+glm::vec3 spherePoint(float radius, float betaDegree, float lambdaDegree, glm::vec3 center);
+int indexCount = 0;
 
 
 // ================================================================================= Size =================================================================================
 float size = 1;
-int n = 1;
+int n = 2;
 
 /*
 Struct to hold data for object rendering.
@@ -97,7 +99,7 @@ void renderSphere()
     // Bind vertex array object so we can render the 1 triangle.
     glBindVertexArray(sphere.vao);
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-    glDrawElements(GL_TRIANGLES, (n+1)*(n+1)*3 , GL_UNSIGNED_SHORT, 0);
+    glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_SHORT, 0);
     glBindVertexArray(0);
 }
     
@@ -179,15 +181,19 @@ void initSphere(float size) {
         1, 3, 5,
         1, 4, 3 };
 
+    std::cout << sphereIndicesWithoutSubdivision.size() << std::endl;
+    std::vector<glm::vec3> sphereVertices;
+    std::vector<GLushort> sphereIndices;
 
-    std::vector<glm::vec3> sphereVertices = calcSphereVertices(sphereVerticesWithoutSubdivision[0], sphereVerticesWithoutSubdivision[3], sphereVerticesWithoutSubdivision[4], glm::vec3 (0.0f, 0.0f, 0.0f));
-    std::vector<GLushort> sphereIndices = calcIndices(sphereVertices);
+    sphereVertices = calcSphereVertices(sphereVerticesWithoutSubdivision, sphereIndicesWithoutSubdivision, glm::vec3 (0.0f, 0.0f, 0.0f));
+    sphereIndices = calcIndices(sphereVertices);
     
     if (n == 0) {
         sphereVertices = sphereVerticesWithoutSubdivision;
         sphereIndices = sphereIndicesWithoutSubdivision;
     }
     
+    indexCount = sphereIndices.size();
     
     for (glm::vec3& v : sphereVertices) v *= size;
 
@@ -310,52 +316,66 @@ std::vector<GLushort> calcIndices(std::vector<glm::vec3> subTriangles) {
     return sphereIndicesWithSubdivision;
 }
 
+glm::vec3 spherePoint(float radius, float betaDegree, float lambdaDegree, glm::vec3 center)
+{
+    float beta = glm::radians(betaDegree);
+    float lambda = glm::radians(lambdaDegree);
 
-glm::vec3 rotateVec(glm::vec3 origin, float degree, glm::vec3 axis) {
-    return glm::rotate(origin, glm::radians(degree), axis);
+    float x = radius * sin(beta) * cos(lambda);
+    float y = radius * cos(beta);
+    float z = radius * sin(beta) * sin(lambda);
+
+    return center + glm::vec3(x, y, z);
 }
 
-std::vector<glm::vec3> calcSphereVertices(glm::vec3 v1, glm::vec3 v2, glm::vec3 v3, glm::vec3 center) {
-    
+std::vector<glm::vec3> calcSphereVertices(std::vector<glm::vec3> sphereVerticesWithoutSubdivision, std::vector<GLushort> sphereIndicesWithoutSubdivision, glm::vec3 center)
+{
     std::vector<glm::vec3> subTriangles;
-    float degree = 90.0f/(n+1);
 
-    glm::vec3 vectorCenterToCornerPoint = v1 - center;
-    glm::vec3 newVertice;
+    float degree = 90.0f / (n + 1);
 
-    for (int i = 0; i <= n+1; i++)
-    {   //geht hoch, also rotieren um die x achse
-        newVertice = rotateVec(vectorCenterToCornerPoint, degree*i, glm::vec3(1, 0, 0));
-        //aus dem relativen Punkt zum Center einen Punkt im globalen Koordinatensystem machen
-        newVertice = newVertice + center; 
-        //den neuen Ausgangspunkt speichern, selbst wenn er nicht rotiert wurde
-        subTriangles.push_back(newVertice);
+        
+   
+    for (int k = 0; k < sphereIndicesWithoutSubdivision.size(); k += 3) {
+        glm::vec3 v1 =
+            sphereVerticesWithoutSubdivision[
+                sphereIndicesWithoutSubdivision[k]
+            ];
 
-        //der höhere Punkt ist jetzt mein neuer Ausgangspunkt, von dem ich nach links gehe. Ich brauche also den Vektor von center zum neuen Ausgangspunkt.
-        glm::vec3 vectorCenterToNewVertice = newVertice - center;
-        //ausgehend vom neuen Ausgangspunkt nach links gehen:
-        int triangleCountInRow = n + 2 - i;
-        for (int y = 1; y < triangleCountInRow; y++)
-        {   
-            //jetzt rotiere ich um die z Achse
-            newVertice = rotateVec(vectorCenterToNewVertice, -(degree*y), glm::vec3(0, 0, 1));
-            //aus dem relativen Punkt zum Center einen Punkt im globalen Koordinatensystem machen
-            newVertice = newVertice + center;
-            std::cout << "links " << y << std::endl;
-            subTriangles.push_back(newVertice);
+        glm::vec3 v2 =
+            sphereVerticesWithoutSubdivision[
+                sphereIndicesWithoutSubdivision[k + 1]
+            ];
+
+        glm::vec3 v3 =
+            sphereVerticesWithoutSubdivision[
+                sphereIndicesWithoutSubdivision[k + 2]
+            ];
+        float radius = glm::length(v1 - center);
+       
+
+        for (int i = 0; i <= n + 1; i++)
+        {
+            // von oben nach unten
+            float beta = 90.0f - (i * degree);
+
+            int triangleCountInRow = n + 2 - i;
+
+            for (int j = 0; j < triangleCountInRow; j++)
+            {
+                // seitliche Bewegung
+                float lambda = j * degree;
+
+                glm::vec3 point =
+                    spherePoint(radius, beta, lambda, center);
+
+                subTriangles.push_back(point);
+            }
         }
     }
-    for (const auto& v : subTriangles)
-    {
-        std::cout << "("
-            << v.x << ", "
-            << v.y << ", "
-            << v.z << ")"
-            << std::endl;
-    }
+    
     return subTriangles;
 }
-
 
 std::vector<glm::vec3> calcSubDivideTriangle(glm::vec3 v1, glm::vec3 v2, glm::vec3 v3)
 {
