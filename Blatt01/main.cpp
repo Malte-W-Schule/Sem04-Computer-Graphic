@@ -21,6 +21,8 @@ const int WINDOW_HEIGHT = 480;
 // GLUT window id/handle
 int glutID = 0;
 
+bool normalen = false;
+
 glm::vec3 CMYtoRGB(glm::vec3 input);
 glm::vec3 CMYtoHSV(glm::vec3 input);
 glm::vec3 RGBtoHSV(glm::vec3 input);
@@ -41,17 +43,18 @@ float zNear = 0.1f;
 float zFar  = 100.0f;
 
 std::vector<GLushort> calcIndices(std::vector<glm::vec3> subTriangles);
-std::vector<glm::vec3> calcSubDivideTriangle(glm::vec3 v1, glm::vec3 v2, glm::vec3 v3);
 std::vector<glm::vec3> calcSphereVertices(std::vector<glm::vec3> sphereVerticesWithoutSubdivision, std::vector<GLushort> sphereIndicesWithoutSubdivision, glm::vec3 center);
 void renderSphere();
-void initSphere(float size);
-glm::vec3 spherePoint(float radius, float betaDegree, float lambdaDegree, glm::vec3 center);
+void initSphere();
+void renderNormales();
+void renderKoords();
 int indexCount = 0;
+int indexCountNormals = 0;
 
 
 // ================================================================================= Size =================================================================================
 float size = 1;
-int n = 20;
+int n = 0;
 
 /*
 Struct to hold data for object rendering.
@@ -86,6 +89,8 @@ public:
 Object triangle;
 Object quad;
 Object sphere;
+Object normales;
+Object koords;
 
 // ================================================================================= RENDER SPHERE =================================================================================
 void renderSphere()
@@ -102,7 +107,35 @@ void renderSphere()
     glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_SHORT, 0);
     glBindVertexArray(0);
 }
+
+void renderNormales() {
+	glm::mat4x4 mvp = projection * view * normales.model;
+
+	// Bind the shader program and set uniform(s).
+	program.use();
+	program.setUniform("mvp", mvp);
+
+	// Bind vertex array object so we can render the 1 triangle.
+	glBindVertexArray(normales.vao);
+	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+	glDrawElements(GL_LINES, indexCountNormals, GL_UNSIGNED_SHORT, 0);
+	glBindVertexArray(0);
+}
     
+void renderKoords() {
+
+    glm::mat4x4 mvp = projection * view * koords.model;
+
+    // Bind the shader program and set uniform(s).
+    program.use();
+    program.setUniform("mvp", mvp);
+
+    // Bind vertex array object so we can render the 1 triangle.
+    glBindVertexArray(koords.vao);
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    glDrawElements(GL_LINES, 6, GL_UNSIGNED_SHORT, 0);
+    glBindVertexArray(0);
+}
 
 // ================================================================================= RENDER TRIANGLE =================================================================================
 void renderTriangle()
@@ -136,7 +169,7 @@ void renderQuad()
 }
 
 // ================================================================================= INIT SPHERE =================================================================================
-void initSphere(float size) {
+void initSphere() {
     // start (0,0,0)
        //ecken, 5 | 4 mitte | 1 oben | 1 unten (start)
 
@@ -148,23 +181,27 @@ void initSphere(float size) {
     std::vector<glm::vec3> sphereVerticesold = { {
         { 0.0f,  1.0f,  0.0f}, // 0: Oben
         { 0.0f,  -1.0f,  0.0f}, // 1: Unten
-        { -1.0f,  -0.1f,  1.0f}, // 2: Rechts
-        {1.0f,  0.1f,  -1.0f}, // 3: Links
-        { 1.0f,  -0.1f,  1.0f}, // 4: Vorne
-        { -1.0f,  0.1f, -1.0f}  // 5: Hinten
+        { -1.0f,  -0.1f,  1.0f}, // 2: VORNE
+        {1.0f,  0.1f,  -1.0f}, // 3: Hinten
+        { 1.0f,  -0.1f,  1.0f}, // 4: Rechts
+        { -1.0f,  0.1f, -1.0f}  // 5: Links
     } };
 
 
     // === Startpunkt rotiert um 50°===
 
-    std::vector<glm::vec3> sphereVerticesWithoutSubdivision = { 
+    std::vector<glm::vec3> sphereVerticesWithoutSubdivision = {
     {  0.0f,       1.0f,   0.0f },       // 0: Oben (bleibt gleich, da auf der Drehachse)
     {  0.0f,      -1.0f,   0.0f },       // 1: Unten (bleibt gleich, da auf der Drehachse)
-    {  0.245576f, -0.1f,   1.392728f },  // 2: Rechts
-    { -0.245576f,  0.1f,  -1.392728f },  // 3: Links
-    {  1.392728f, 0.0f,  -0.245576f },   // 4: Vorne
-    { -1.392728f,  0.0f,   0.245576f }   // 5: Hinten
-   };
+    {  0.245576f, -0.1f,   1.392728f },  // 2: VORNE
+    { -0.245576f,  0.1f,  -1.392728f },  // 3: Hinten
+    {  1.392728f, 0.0f,  -0.245576f },   // 4: Rechts
+    { -1.392728f,  0.0f,   0.245576f }   // 5: Links
+
+
+
+
+    };
 
 
     // 24 Indizes für die 8 Dreiecke 
@@ -181,28 +218,29 @@ void initSphere(float size) {
         1, 3, 5,
         1, 4, 3 };
 
-    std::cout << sphereIndicesWithoutSubdivision.size() << std::endl;
+
     std::vector<glm::vec3> sphereVertices;
     std::vector<GLushort> sphereIndices;
 
-    sphereVertices = calcSphereVertices(sphereVerticesWithoutSubdivision, sphereIndicesWithoutSubdivision, glm::vec3 (0.0f, 0.0f, 0.0f));
+    sphereVertices = calcSphereVertices(sphereVerticesWithoutSubdivision, sphereIndicesWithoutSubdivision, glm::vec3(0.0f, 0.0f, 0.0f));
     sphereIndices = calcIndices(sphereVertices);
-    
+
     if (n == 0) {
         sphereVertices = sphereVerticesWithoutSubdivision;
         sphereIndices = sphereIndicesWithoutSubdivision;
     }
-    
+
     indexCount = sphereIndices.size();
-    
-    for (glm::vec3& v : sphereVertices) v *= size;
+    indexCountNormals = sphereVertices.size() * 2;
+
+    //for (glm::vec3& v : sphereVertices) v *= size;
 
 
-	std::vector<glm::vec3> colors;
-	// Für jeden generierten Punkt exakt einen Farbwert anlegen
-	for (size_t i = 0; i < sphereVertices.size(); i++) {
-		colors.push_back(glm::vec3(1.0f, 0.0f, 0.0f)); // Alles Rot
-	}
+    std::vector<glm::vec3> colors;
+    // Für jeden generierten Punkt exakt einen Farbwert anlegen
+    for (size_t i = 0; i < sphereVertices.size(); i++) {
+        colors.push_back(glm::vec3(1.0f, 1.0f, 0.0f)); // Alles Gelb
+    }
 
 
     GLuint programId = program.getHandle();
@@ -242,7 +280,151 @@ void initSphere(float size) {
 
     // Modify model matrix.Kugel liegt jetzt im Mittelpunkt
     sphere.model = glm::mat4(1.0f);
+
+    
+
+
+
+    // ============================================================================== Koordinaten ==============================================================================
+
+   // X rot (um -5 Grad um Y gedreht)
+	glm::vec3 minusXline(0.0f, 0.0f, 0.0f);
+	glm::vec3 plusXline(1.392728f, 0.0f, -0.245576f);
+     
+	// Y blau (bleibt bei Y-Rotation völlig unverändert)
+	glm::vec3 minusYline(0.0f, 0.0f, 0.0f);
+	glm::vec3 plusYline(0.0f, 1.0f, 0.0f);
+
+	// Z lila/magenta (um -5 Grad um Y gedreht)
+	glm::vec3 minusZline(0.0f, 0.0f, 0.0f);
+	glm::vec3 plusZline(0.245576f, -0.1f, 1.392728f);
+
+    std::vector<glm::vec3> koordList;
+
+	koordList.push_back(minusXline);//0
+	koordList.push_back(plusXline);//1
+
+	koordList.push_back(minusYline);//2
+	koordList.push_back(plusYline);
+
+	koordList.push_back(minusZline);
+	koordList.push_back(plusZline);
+
+    std::vector<GLushort> koordIndiceList = { 0, 1, 2, 3, 4, 5 };
+
+
+    std::vector<glm::vec3> koordColors = {
+		glm::vec3(1.0f, 0.0f, 0.0f),
+		glm::vec3(1.0f, 0.0f, 0.0f),
+		glm::vec3(0.0f, 0.0f, 1.0f),
+		glm::vec3(0.0f, 0.0f, 1.0f),
+		glm::vec3(0.0f, 1.0f, 0.0f) ,
+        glm::vec3(0.0f, 1.0f, 0.0f)};
+
+
+
+    // Step 0: Create vertex array object.
+    glGenVertexArrays(1, &koords.vao);
+    glBindVertexArray(koords.vao);
+
+    // Step 1: Create vertex buffer object for position attribute and bind it to the associated "shader attribute".
+    glGenBuffers(1, &koords.positionBuffer);
+    glBindBuffer(GL_ARRAY_BUFFER, koords.positionBuffer);
+    glBufferData(GL_ARRAY_BUFFER, koordList.size() * sizeof(glm::vec3), koordList.data(), GL_STATIC_DRAW);
+
+    // Bind it to position.
+    pos = glGetAttribLocation(programId, "position");
+    glEnableVertexAttribArray(pos);
+    glVertexAttribPointer(pos, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+    // Step 2: Create vertex buffer object for color attribute and bind it to...
+    glGenBuffers(1, &koords.colorBuffer);
+    glBindBuffer(GL_ARRAY_BUFFER, koords.colorBuffer);
+    glBufferData(GL_ARRAY_BUFFER, koordColors.size() * sizeof(glm::vec3), koordColors.data(), GL_STATIC_DRAW);
+
+    // Bind it to color.
+    pos = glGetAttribLocation(programId, "color");
+    glEnableVertexAttribArray(pos);
+    glVertexAttribPointer(pos, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+    // Step 3: Create vertex buffer object for indices. No binding needed here.
+    glGenBuffers(1, &koords.indexBuffer);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, koords.indexBuffer);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, koordIndiceList.size() * sizeof(GLushort), koordIndiceList.data(), GL_STATIC_DRAW);
+
+    // Unbind vertex array object (back to default).
+    glBindVertexArray(0);
+
+    // Modify model matrix.Kugel liegt jetzt im Mittelpunkt
+	koords.model = glm::mat4(1.0f);
+    
+        
+    // ============================================================================== normalen ==============================================================================
+    
+	std::vector<glm::vec3> normalenListe;
+	std::vector<GLushort> normalenIndicesListe;
+        for (auto& a : sphereVertices)
+        {
+        //center
+
+            glm::vec3 center(0.0f, 0.0f, 0.0f);
+            // richtungsvektor berechnen
+            glm::vec3 normalePunkt = a + (a - center);
+
+            // linie malen von a zu normalePunkt
+            int lenght = normalenIndicesListe.size(); // bei leer = 0, bei 1 = 1 
+
+
+            normalenListe.push_back(a);
+            normalenListe.push_back(normalePunkt);
+            // indizes hinzufügen
+            normalenIndicesListe.push_back(lenght);
+            normalenIndicesListe.push_back(lenght + 1);
+        }
+
+    std::vector<glm::vec3> colorsNormales;
+    // Für jeden generierten Punkt exakt einen Farbwert anlegen
+    for (size_t i = 0; i < normalenListe.size(); i++) {
+        colorsNormales.push_back(glm::vec3(0.0f, 1.0f, 0.0f)); // Alles grün
+    }
+
+    // noralenliste und normalenindicesliste drawn.
+    // Step 0: Create vertex array object.
+    glGenVertexArrays(1, &normales.vao);
+    glBindVertexArray(normales.vao);
+
+    // Step 1: Create vertex buffer object for position attribute and bind it to the associated "shader attribute".
+    glGenBuffers(1, &normales.positionBuffer);
+    glBindBuffer(GL_ARRAY_BUFFER, normales.positionBuffer);
+    glBufferData(GL_ARRAY_BUFFER, normalenListe.size() * sizeof(glm::vec3), normalenListe.data(), GL_STATIC_DRAW);
+
+    // Bind it to position.
+    pos = glGetAttribLocation(programId, "position");
+    glEnableVertexAttribArray(pos);
+    glVertexAttribPointer(pos, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+    // Step 2: Create vertex buffer object for color attribute and bind it to...
+    glGenBuffers(1, &normales.colorBuffer);
+    glBindBuffer(GL_ARRAY_BUFFER, normales.colorBuffer);
+    glBufferData(GL_ARRAY_BUFFER, colorsNormales.size() * sizeof(glm::vec3), colorsNormales.data(), GL_STATIC_DRAW);
+
+    // Bind it to color.
+    pos = glGetAttribLocation(programId, "color");
+    glEnableVertexAttribArray(pos);
+    glVertexAttribPointer(pos, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+    // Step 3: Create vertex buffer object for indices. No binding needed here.
+    glGenBuffers(1, &normales.indexBuffer);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, normales.indexBuffer);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, normalenIndicesListe.size() * sizeof(GLushort), normalenIndicesListe.data(), GL_STATIC_DRAW);
+
+    // Unbind vertex array object (back to default).
+    glBindVertexArray(0);
+
+    normales.model = glm::mat4(1.0f);
 }
+
+
 
 std::vector<GLushort> calcIndices(std::vector<glm::vec3> subTriangles) {
 	std::vector<GLushort> sphereIndicesWithSubdivision;
@@ -283,25 +465,22 @@ std::vector<GLushort> calcIndices(std::vector<glm::vec3> subTriangles) {
 			weirdIndexCounter += countRow;
 		}
 	}
-
+    for (int i = 0; i < sphereIndicesWithSubdivision.size(); i += 3)
+    {
+        std::cout
+            << sphereIndicesWithSubdivision[i] << ", "
+            << sphereIndicesWithSubdivision[i + 1] << ", "
+            << sphereIndicesWithSubdivision[i + 2]
+            << std::endl;
+    }
 	return sphereIndicesWithSubdivision;
 }
 
-glm::vec3 spherePoint(float radius, float betaDegree, float lambdaDegree, glm::vec3 center)
-{
-    float beta = glm::radians(betaDegree);
-    float lambda = glm::radians(lambdaDegree);
 
-    float x = radius * sin(beta) * cos(lambda);
-    float y = radius * cos(beta);
-    float z = radius * sin(beta) * sin(lambda);
-
-    return center + glm::vec3(x, y, z);
-}
 
 std::vector<glm::vec3> calcSphereVertices(std::vector<glm::vec3> sphereVerticesWithoutSubdivision, std::vector<GLushort> sphereIndicesWithoutSubdivision, glm::vec3 center)
 {
-	std::vector<glm::vec3> subTriangles;
+	std::vector<glm::vec3> subTriangles; 
 
 	// Wir gehen durch alle 8 Flächen des Basis-Oktaeders
 	for (int k = 0; k < sphereIndicesWithoutSubdivision.size(); k += 3) {
@@ -310,6 +489,7 @@ std::vector<glm::vec3> calcSphereVertices(std::vector<glm::vec3> sphereVerticesW
 		glm::vec3 v3 = sphereVerticesWithoutSubdivision[sphereIndicesWithoutSubdivision[k + 2]]; // Basis rechts
 
 		for (int y = 0; y <= n + 1; y++) {
+            //äußere For wandert von unten nach oben durch die reihen
 			// t geht von 0.0 (unten an der Basis v2-v3) bis 1.0 (oben an der Spitze v1)
 			float t = (float)y / (n + 1);
 
@@ -331,6 +511,7 @@ std::vector<glm::vec3> calcSphereVertices(std::vector<glm::vec3> sphereVerticesW
 				}
 
 				// WICHTIG: Den Punkt auf die Kugeloberfläche zwingen (Radius = 1.0)
+                //vllt müssen wir noch den Radius draufmultiplizieren? Wenn Radius mal nicht 1 ist?
 				point = center + glm::normalize(point - center);
 				subTriangles.push_back(point);
 			}
@@ -507,7 +688,7 @@ bool init()
   //initQuad(colors);
   //initTriangle();
 
-  initSphere(1.0f);
+  initSphere();
   return true;
 }
 
@@ -523,6 +704,10 @@ void render()
 	//renderTriangle();
 	//renderQuad();
     renderSphere();
+    if (normalen) {
+        renderNormales();
+    }
+    renderKoords();
 }
 
 void glutDisplay ()
@@ -561,38 +746,62 @@ void glutKeyboard (unsigned char keycode, int x, int y)
   case '+':
     if (n == 4) { break; }
     n += 1;
-    //initSphere(1.0f); //Größe nicht verändern
+    initSphere(); //Größe nicht verändern
     
     break;
   case '-':
 	if (n == 0) { break; }
     n -= 1;
-	//initSphere(1.0f); //Größe nicht verändern
+	initSphere(); //Größe nicht verändern
     
     break;
   case 'x':
-    // do something
-    break;
+	  // Rotationsmatrix für X-Achse erzeugen und auf alle Objekte anwenden
+	  sphere.model = glm::rotate(sphere.model, glm::radians(-5.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+	  normales.model = glm::rotate(normales.model, glm::radians(-5.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+	  koords.model = glm::rotate(koords.model, glm::radians(-5.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+	  break;
+
   case 'y':
-    // do something
-    break;
+	  // Rotationsmatrix für Y-Achse erzeugen und auf alle Objekte anwenden
+	  sphere.model = glm::rotate(sphere.model, glm::radians(-5.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	  normales.model = glm::rotate(normales.model, glm::radians(-5.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	  koords.model = glm::rotate(koords.model, glm::radians(-5.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	  break;
+
   case 'z':
-    // do something
-    break;
-  case 'r':
-      if (size <= 0.5) {
-          break;
-      }
-      size = size - 0.1;
-	  initSphere(size);
+	  // Rotationsmatrix für Z-Achse erzeugen und auf alle Objekte anwenden
+	  sphere.model = glm::rotate(sphere.model, glm::radians(-5.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+	  normales.model = glm::rotate(normales.model, glm::radians(-5.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+	  koords.model = glm::rotate(koords.model, glm::radians(-5.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 	  break;
-  case 'R':
-      if(size>1.5){
-          break;
-      }
-	  size = size + 0.1;
-	  initSphere(size);
+  case 'r': // Kleiner machen (z.B. um den Faktor 0.9
+    if(size > -5)
+    {
+		sphere.model = glm::scale(sphere.model, glm::vec3(0.9f));
+		normales.model = glm::scale(normales.model, glm::vec3(0.9f));
+        size -= 1;
+        //initSphere();
+    }
+	 
+    // koords.model weglassen, wenn das Achsenkreuz seine feste Größe behalten soll!
+	break;
+
+  case 'R': // Größer machen (z.B. um den Faktor 1.1)
+
+	  if (size < 5)
+	  {
+
+		  sphere.model = glm::scale(sphere.model, glm::vec3(1.1f));
+		  normales.model = glm::scale(normales.model, glm::vec3(1.1f));
+          size += 1;
+          //initSphere();
+	  }
 	  break;
+  case 'l':
+  // true false "switch" für normale
+      normalen = !normalen;
+      break;
   }
   glutPostRedisplay();
 }
