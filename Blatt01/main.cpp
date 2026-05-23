@@ -51,7 +51,7 @@ int indexCount = 0;
 
 // ================================================================================= Size =================================================================================
 float size = 1;
-int n = 2;
+int n = 20;
 
 /*
 Struct to hold data for object rendering.
@@ -197,15 +197,12 @@ void initSphere(float size) {
     
     for (glm::vec3& v : sphereVertices) v *= size;
 
-    //alles Rot
-    const std::vector<glm::vec3> colors = { {
-        { 1.0f,  1.0f,  0.0f},
-        { 1.0f,  0.0f,  0.0f}, 
-        { 1.0f,  0.0f,  0.0f}, 
-        { 1.0f,  0.0f,  0.0f}, 
-        { 1.0f,  1.0f,  0.0f}, 
-        { 0.0f,  1.0f,  0.0f}  
-    } };
+
+	std::vector<glm::vec3> colors;
+	// Für jeden generierten Punkt exakt einen Farbwert anlegen
+	for (size_t i = 0; i < sphereVertices.size(); i++) {
+		colors.push_back(glm::vec3(1.0f, 0.0f, 0.0f)); // Alles Rot
+	}
 
 
     GLuint programId = program.getHandle();
@@ -248,72 +245,46 @@ void initSphere(float size) {
 }
 
 std::vector<GLushort> calcIndices(std::vector<glm::vec3> subTriangles) {
-    std::vector<GLushort> sphereIndicesWithSubdivision;
+	std::vector<GLushort> sphereIndicesWithSubdivision;
 
-   int weirdIndexCounter = 0;
+	int numFaces = 8; // Unser Basis-Oktaeder hat 8 Flächen
+	// Mathematische Summenformel für die Anzahl der Punkte in einem unterteilten Dreieck
+	int pointsPerFace = ((n + 2) * (n + 3)) / 2;
 
-    for (int y = 0; y <= n; y++)
-    {
-        int countRow = (n + 2 - y);
+	// Für jede der 8 Flächen die Indizes berechnen
+	for (int face = 0; face < numFaces; face++) {
+		// Offset: Bei welcher Index-Nummer beginnt die aktuelle Fläche im Array?
+		int weirdIndexCounter = face * pointsPerFace;
 
-        for (int x = 0; x < countRow - 1; x++)
-        {
-            int V1 = weirdIndexCounter + x;
-            int V2 = V1 + countRow;
-            int V3 = V1 + 1;
+		for (int y = 0; y <= n; y++) {
+			int countRow = (n + 2 - y);
 
-            // Dreieck nach unten
-            sphereIndicesWithSubdivision.push_back(V1);
-            sphereIndicesWithSubdivision.push_back(V2);
-            sphereIndicesWithSubdivision.push_back(V3);
+			for (int x = 0; x < countRow - 1; x++) {
+				int V1 = weirdIndexCounter + x;
+				int V2 = V1 + countRow;
+				int V3 = V1 + 1;
 
-            // Dreieck nach oben
-            if (x != 0)
-            {
-                int Vu1 = V1;
-                int Vu2 = V2 - 1;
-                int Vu3 = V2;
+				// Dreieck nach unten
+				sphereIndicesWithSubdivision.push_back(V1);
+				sphereIndicesWithSubdivision.push_back(V2);
+				sphereIndicesWithSubdivision.push_back(V3);
 
-                sphereIndicesWithSubdivision.push_back(Vu1);
-                sphereIndicesWithSubdivision.push_back(Vu2);
-                sphereIndicesWithSubdivision.push_back(Vu3);
-            }
-        }
+				// Dreieck nach oben
+				if (x != 0) {
+					int Vu1 = V1;
+					int Vu2 = V2 - 1;
+					int Vu3 = V2;
 
-        weirdIndexCounter += countRow;
-    }
+					sphereIndicesWithSubdivision.push_back(Vu1);
+					sphereIndicesWithSubdivision.push_back(Vu2);
+					sphereIndicesWithSubdivision.push_back(Vu3);
+				}
+			}
+			weirdIndexCounter += countRow;
+		}
+	}
 
-   /* if (n == 1) {
-        sphereIndicesWithSubdivision = {
-            // Obere Hälfte
-            0,1,4,
-            0,4,3,
-            3,4,6,
-            4,5,6,
-            1,5,4,
-            1,2,5
-            
-            
-         };
-    
-    }
-    
-    if (n == 2) {
-        sphereIndicesWithSubdivision = {
-        // Obere Hälfte
-        0, 4, 1,
-        1, 5, 2,
-        2, 5, 6,
-        2, 6, 3,
-
-        // Untere Hälfte
-        4, 7, 5,
-        5, 7, 8,
-        5, 8, 6,
-        7, 9, 8 }; 
-    }
-    */
-    return sphereIndicesWithSubdivision;
+	return sphereIndicesWithSubdivision;
 }
 
 glm::vec3 spherePoint(float radius, float betaDegree, float lambdaDegree, glm::vec3 center)
@@ -330,84 +301,45 @@ glm::vec3 spherePoint(float radius, float betaDegree, float lambdaDegree, glm::v
 
 std::vector<glm::vec3> calcSphereVertices(std::vector<glm::vec3> sphereVerticesWithoutSubdivision, std::vector<GLushort> sphereIndicesWithoutSubdivision, glm::vec3 center)
 {
-    std::vector<glm::vec3> subTriangles;
-
-    float degree = 90.0f / (n + 1);
-
-        
-   
-    for (int k = 0; k < sphereIndicesWithoutSubdivision.size(); k += 3) {
-        glm::vec3 v1 =
-            sphereVerticesWithoutSubdivision[
-                sphereIndicesWithoutSubdivision[k]
-            ];
-
-        glm::vec3 v2 =
-            sphereVerticesWithoutSubdivision[
-                sphereIndicesWithoutSubdivision[k + 1]
-            ];
-
-        glm::vec3 v3 =
-            sphereVerticesWithoutSubdivision[
-                sphereIndicesWithoutSubdivision[k + 2]
-            ];
-        float radius = glm::length(v1 - center);
-       
-
-        for (int i = 0; i <= n + 1; i++)
-        {
-            // von oben nach unten
-            float beta = 90.0f - (i * degree);
-
-            int triangleCountInRow = n + 2 - i;
-
-            for (int j = 0; j < triangleCountInRow; j++)
-            {
-                // seitliche Bewegung
-                float lambda = j * degree;
-
-                glm::vec3 point =
-                    spherePoint(radius, beta, lambda, center);
-
-                subTriangles.push_back(point);
-            }
-        }
-    }
-    
-    return subTriangles;
-}
-
-std::vector<glm::vec3> calcSubDivideTriangle(glm::vec3 v1, glm::vec3 v2, glm::vec3 v3)
-{
 	std::vector<glm::vec3> subTriangles;
 
-	// d ist die Anzahl der Segmente pro Kante (z.B. n=1 bedeutet d=2 Segmente)
-	float d = static_cast<float>(n + 1);
+	// Wir gehen durch alle 8 Flächen des Basis-Oktaeders
+	for (int k = 0; k < sphereIndicesWithoutSubdivision.size(); k += 3) {
+		glm::vec3 v1 = sphereVerticesWithoutSubdivision[sphereIndicesWithoutSubdivision[k]];     // Spitze
+		glm::vec3 v2 = sphereVerticesWithoutSubdivision[sphereIndicesWithoutSubdivision[k + 1]]; // Basis links
+		glm::vec3 v3 = sphereVerticesWithoutSubdivision[sphereIndicesWithoutSubdivision[k + 2]]; // Basis rechts
 
-	// richtungsvektoren ausgehend von V1
-	glm::vec3 toTopLeftV    = (v2 - v1) / d; 
-	glm::vec3 toLeftV       = (v3 - v1) / d; 
-    glm::vec3 start;
-    
+		for (int y = 0; y <= n + 1; y++) {
+			// t geht von 0.0 (unten an der Basis v2-v3) bis 1.0 (oben an der Spitze v1)
+			float t = (float)y / (n + 1);
 
-	for (int i = 0; i <= n + 1 ; i++)
-    {
-        start = v1 + (float(i) * toTopLeftV);
+			// Start- und Endpunkt der aktuellen Reihe berechnen
+			glm::vec3 rowStart = v2 + t * (v1 - v2);
+			glm::vec3 rowEnd = v3 + t * (v1 - v3);
 
-		glm::vec3 rowStartV1 = v1 + (static_cast<float>(i) * toTopLeftV);
-        
-        int triangleCountInRow = n + 2 - i;
+			int pointsInRow = n + 2 - y; // Wird nach oben hin immer schmaler
 
-		for (int y = 0; y < triangleCountInRow; y++)
-		{
-            glm::vec3 currentPoint = start + (float(y) * toLeftV);
-            subTriangles.push_back(currentPoint);
+			for (int x = 0; x < pointsInRow; x++) {
+				glm::vec3 point;
+				if (pointsInRow == 1) {
+					point = rowStart; // Ganz oben gibt es nur noch die Spitze (v1)
+				}
+				else {
+					// Auf der Reihe von links nach rechts interpolieren
+					float u = (float)x / (pointsInRow - 1);
+					point = rowStart + u * (rowEnd - rowStart);
+				}
+
+				// WICHTIG: Den Punkt auf die Kugeloberfläche zwingen (Radius = 1.0)
+				point = center + glm::normalize(point - center);
+				subTriangles.push_back(point);
+			}
 		}
-        
 	}
 
 	return subTriangles;
 }
+
 
 
 // ================================================================================= INIT TRIANGLE =================================================================================
