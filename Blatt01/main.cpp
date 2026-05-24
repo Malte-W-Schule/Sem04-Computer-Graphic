@@ -42,6 +42,10 @@ glm::mat4x4 projection;
 float zNear = 0.1f;
 float zFar  = 100.0f;
 
+int xRotation = 0;
+int yRotation = 0;
+int zRotation = 0;
+
 std::vector<GLushort> calcIndices(std::vector<glm::vec3> subTriangles);
 std::vector<glm::vec3> calcSphereVertices(std::vector<glm::vec3> sphereVerticesWithoutSubdivision, std::vector<GLushort> sphereIndicesWithoutSubdivision, glm::vec3 center);
 void renderSphere();
@@ -50,10 +54,11 @@ void renderNormales();
 void renderKoords();
 int indexCount = 0;
 int indexCountNormals = 0;
+float CZoom = 4.0f;
 
 
 // ================================================================================= Size =================================================================================
-float size = 1;
+float size = 1.0f;
 int n = 0;
 
 /*
@@ -233,7 +238,7 @@ void initSphere() {
     indexCount = sphereIndices.size();
     indexCountNormals = sphereVertices.size() * 2;
 
-    //for (glm::vec3& v : sphereVertices) v *= size;
+    for (glm::vec3& v : sphereVertices) v *= size;
 
 
     std::vector<glm::vec3> colors;
@@ -282,6 +287,7 @@ void initSphere() {
     sphere.model = glm::mat4(1.0f);
 
     
+
 
 
 
@@ -422,6 +428,30 @@ void initSphere() {
     glBindVertexArray(0);
 
     normales.model = glm::mat4(1.0f);
+
+    // ==================================================================== ROtation faken ===================================================================================
+	for (int x = 0; x < xRotation; x++) {
+
+		// Rotationsmatrix für X-Achse erzeugen und auf alle Objekte anwenden
+		sphere.model = glm::rotate(sphere.model, glm::radians(-5.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+		normales.model = glm::rotate(normales.model, glm::radians(-5.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+		koords.model = glm::rotate(koords.model, glm::radians(-5.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+	}
+	for (int y = 0; y < yRotation; y++) {
+
+		// Rotationsmatrix für X-Achse erzeugen und auf alle Objekte anwenden
+		sphere.model = glm::rotate(sphere.model, glm::radians(-5.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+		normales.model = glm::rotate(normales.model, glm::radians(-5.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+		koords.model = glm::rotate(koords.model, glm::radians(-5.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	}
+	for (int z = 0; z < zRotation; z++) {
+
+		// Rotationsmatrix für X-Achse erzeugen und auf alle Objekte anwenden
+		sphere.model = glm::rotate(sphere.model, glm::radians(-5.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+		normales.model = glm::rotate(normales.model, glm::radians(-5.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+		koords.model = glm::rotate(koords.model, glm::radians(-5.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+	}
+
 }
 
 
@@ -633,8 +663,11 @@ bool init()
   glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
   glEnable(GL_DEPTH_TEST);
   
+  // ================================================================================= Construct view matrix =================================================================================
   // Construct view matrix.
-  glm::vec3 eye(0.0f, 0.0f, 4.0f);
+
+ 
+  glm::vec3 eye(0.0f, 0.0f, CZoom);
   glm::vec3 center(0.0f, 0.0f, 0.0f);
   glm::vec3 up(0.0f, 1.0f, 0.0f);
   
@@ -738,80 +771,107 @@ void glutResize (int width, int height)
  */
 void glutKeyboard (unsigned char keycode, int x, int y)
 {
-  switch (keycode) {
-  case 27: // ESC
-    glutDestroyWindow ( glutID );
-    return;
-    
-  case '+':
-    if (n == 4) { break; }
-    n += 1;
-    initSphere(); //Größe nicht verändern
-    
-    break;
-  case '-':
-	if (n == 0) { break; }
-    n -= 1;
-	initSphere(); //Größe nicht verändern
-    
-    break;
-  case 'x':
-	  // Rotationsmatrix für X-Achse erzeugen und auf alle Objekte anwenden
-	  sphere.model = glm::rotate(sphere.model, glm::radians(-5.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-	  normales.model = glm::rotate(normales.model, glm::radians(-5.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-	  koords.model = glm::rotate(koords.model, glm::radians(-5.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-	  break;
+    switch (keycode) {
+    case 27: // ESC
+        glutDestroyWindow(glutID);
+        return;
 
-  case 'y':
-	  // Rotationsmatrix für Y-Achse erzeugen und auf alle Objekte anwenden
-	  sphere.model = glm::rotate(sphere.model, glm::radians(-5.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-	  normales.model = glm::rotate(normales.model, glm::radians(-5.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-	  koords.model = glm::rotate(koords.model, glm::radians(-5.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-	  break;
+    case '+':
+        if (n == 4) { break; }
+        n += 1;
+        initSphere(); //Größe nicht verändern
 
-  case 'z':
-	  // Rotationsmatrix für Z-Achse erzeugen und auf alle Objekte anwenden
-	  sphere.model = glm::rotate(sphere.model, glm::radians(-5.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-	  normales.model = glm::rotate(normales.model, glm::radians(-5.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-	  koords.model = glm::rotate(koords.model, glm::radians(-5.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-	  break;
-  case 'r': // Kleiner machen (z.B. um den Faktor 0.9
-    if(size > -5)
-    {
-		sphere.model = glm::scale(sphere.model, glm::vec3(0.9f));
-		normales.model = glm::scale(normales.model, glm::vec3(0.9f));
-        size -= 1;
-        //initSphere();
+        break;
+    case '-':
+        if (n == 0) { break; }
+        n -= 1;
+        initSphere(); //Größe nicht verändern
+
+        break;
+    case 'x':
+        // Rotationsmatrix für X-Achse erzeugen und auf alle Objekte anwenden
+        //sphere.model = glm::rotate(sphere.model, glm::radians(-5.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+        //normales.model = glm::rotate(normales.model, glm::radians(-5.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+        //koords.model = glm::rotate(koords.model, glm::radians(-5.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+        xRotation = (xRotation + 1) % 72; // bei 360 wieder auf 0
+        initSphere();
+        break;
+
+    case 'y':
+        // Rotationsmatrix für Y-Achse erzeugen und auf alle Objekte anwenden
+        //sphere.model = glm::rotate(sphere.model, glm::radians(-5.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        //normales.model = glm::rotate(normales.model, glm::radians(-5.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        //koords.model = glm::rotate(koords.model, glm::radians(-5.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        yRotation = (yRotation + 1) % 72; // bei 360 wieder auf 0
+        initSphere();
+        break;
+
+    case 'z':
+        // Rotationsmatrix für Z-Achse erzeugen und auf alle Objekte anwenden
+        //sphere.model = glm::rotate(sphere.model, glm::radians(-5.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        //normales.model = glm::rotate(normales.model, glm::radians(-5.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        //koords.model = glm::rotate(koords.model, glm::radians(-5.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        zRotation = (zRotation + 1) % 72; // bei 360 wieder auf 0
+        initSphere();
+        break;
+    case 'r': // Kleiner machen (z.B. um den Faktor 0.9
+        if (size > 0.1)
+        {
+            //sphere.model = glm::scale(sphere.model, glm::vec3(0.9f));
+            //normales.model = glm::scale(normales.model, glm::vec3(0.9f));
+            size -= 0.1f;
+            initSphere();
+        }
+
+        // koords.model weglassen, wenn das Achsenkreuz seine feste Größe behalten soll!
+        break;
+
+    case 'R': // Größer machen (z.B. um den Faktor 1.1)
+
+        if (size < 2)
+        {
+
+            //sphere.model = glm::scale(sphere.model, glm::vec3(1.1f));
+            //normales.model = glm::scale(normales.model, glm::vec3(1.1f));
+            size += 0.1;
+            initSphere();
+        }
+        break;
+    case 'l':
+        // true false "switch" für normale
+        normalen = !normalen;
+        break;
+
+    case 'a':
+        
+        CZoom += 0.1;
+        init();
+        break;
+
+    case 's':
+        
+        CZoom -= 0.1f;
+        init();
+        break;
+
+    case 'n':
+    // true false "switch" für normale
+        xRotation = 0;
+		yRotation = 0;
+		zRotation = 0;
+        initSphere();
+        break;
+        
+    glutPostRedisplay();
+
     }
-	 
-    // koords.model weglassen, wenn das Achsenkreuz seine feste Größe behalten soll!
-	break;
-
-  case 'R': // Größer machen (z.B. um den Faktor 1.1)
-
-	  if (size < 5)
-	  {
-
-		  sphere.model = glm::scale(sphere.model, glm::vec3(1.1f));
-		  normales.model = glm::scale(normales.model, glm::vec3(1.1f));
-          size += 1;
-          //initSphere();
-	  }
-	  break;
-  case 'l':
-  // true false "switch" für normale
-      normalen = !normalen;
-      break;
-  }
-  glutPostRedisplay();
 }
 
 
 
 // ================================================================================= MAIN =================================================================================
 
-int main(int argc, char** argv)
-{
+int main(int argc, char** argv){
   // GLUT: Initialize freeglut library (window toolkit).
   glutInitWindowSize    (WINDOW_WIDTH, WINDOW_HEIGHT);
   glutInitWindowPosition(40,40);
