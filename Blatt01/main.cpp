@@ -46,20 +46,20 @@ int xRotation = 0;
 int yRotation = 0;
 int zRotation = 0;
 
-std::vector<GLushort> calcIndices(std::vector<glm::vec3> subTriangles);
-std::vector<glm::vec3> calcSphereVertices(std::vector<glm::vec3> sphereVerticesWithoutSubdivision, std::vector<GLushort> sphereIndicesWithoutSubdivision, glm::vec3 center);
+std::vector<GLushort> calcIndices(int n, std::vector<glm::vec3> subTriangles);
+std::vector<glm::vec3> calcSphereVertices(int n, std::vector<glm::vec3> sphereVerticesWithoutSubdivision, std::vector<GLushort> sphereIndicesWithoutSubdivision, glm::vec3 center);
 void renderSphere();
-void initSphere();
+//void initSphere();
 void renderNormales();
 void renderKoords();
 int indexCount = 0;
 int indexCountNormals = 0;
 float CZoom = 4.0f;
 
+class MySphere;
+
 
 // ================================================================================= Size =================================================================================
-float size = 1.0f;
-int n = 0;
 
 /*
 Struct to hold data for object rendering.
@@ -72,7 +72,7 @@ public:
       positionBuffer(0),
       colorBuffer(0),
       indexBuffer(0)
-  {}
+   {}
 
   inline ~Object () { // GL context must exist on destruction
     glDeleteVertexArrays(1, &vao);
@@ -96,6 +96,127 @@ Object quad;
 Object sphere;
 Object normales;
 Object koords;
+
+
+
+// ================================================================================= SPHERE Klasse =================================================================================
+
+
+class MySphere {
+private:
+	int n; // subdivisions
+	int indexCount;
+
+	// OpenGL Puffer-IDs
+	GLuint vao;
+	GLuint positionBuffer;
+	GLuint colorBuffer;
+	GLuint indexBuffer;
+
+public:
+	// Die Modellmatrix gehört zum Objekt
+	glm::mat4 model;
+
+	// Konstruktor
+	MySphere() : vao(0), positionBuffer(0), colorBuffer(0), indexBuffer(0), indexCount(0), n(3), model(glm::mat4(1.0f)) {}
+
+	// Initialisierung
+	void init(int subdivisions, float radius, float x, float y, float z, glm::vec3 color, GLuint programId) {
+		this->n = subdivisions;
+
+		std::vector<glm::vec3> StartVertices = {
+
+			{ 0.0f,  radius,  0.0f}, // Oben
+			{ 0.0f, -radius,  0.0f}, // Unten
+
+			{ radius,  0.0f,  0.0f}, // Rechts
+			{-radius,  0.0f,  0.0f}, // Links
+
+			{ 0.0f,  0.0f,  radius}, // Vorne
+			{ 0.0f,  0.0f, -radius}  // Hinten
+		};
+
+		std::vector<GLushort> StartIndices = {
+
+			// untere hälfte
+			0, 4, 2,
+			0, 2, 5,
+			0, 5, 3,
+			0, 3, 4,
+
+			// Obere hälfte
+			1, 2, 4,
+			1, 5, 2,
+			1, 3, 5,
+			1, 4, 3
+		};
+
+		glm::vec3 center(0.0f, 0.0f, 0.0f);
+		std::vector<glm::vec3> currentVertices = calcSphereVertices(this->n, StartVertices, StartIndices, center);
+		std::vector<GLushort> currentIndices = calcIndices(this->n, currentVertices);
+
+		this->indexCount = currentIndices.size();
+
+		// Falls Radius in calcSphereVertices nicht verrechnet wird:
+		for (glm::vec3& v : currentVertices) v *= radius;
+
+		std::vector<glm::vec3> colors(currentVertices.size(), color);
+
+		// Alte Puffer löschen, falls init() neu aufgerufen wird (z.B. bei n++ durch Tastatur)
+		if (vao != 0) {
+			glDeleteVertexArrays(1, &vao);
+			glDeleteBuffers(1, &positionBuffer);
+			glDeleteBuffers(1, &colorBuffer);
+			glDeleteBuffers(1, &indexBuffer);
+		}
+
+		glGenVertexArrays(1, &vao);
+		glBindVertexArray(vao);
+
+		glGenBuffers(1, &positionBuffer);
+		glBindBuffer(GL_ARRAY_BUFFER, positionBuffer);
+		glBufferData(GL_ARRAY_BUFFER, currentVertices.size() * sizeof(glm::vec3), currentVertices.data(), GL_STATIC_DRAW);
+		GLuint pos = glGetAttribLocation(programId, "position");
+		glEnableVertexAttribArray(pos);
+		glVertexAttribPointer(pos, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+		glGenBuffers(1, &colorBuffer);
+		glBindBuffer(GL_ARRAY_BUFFER, colorBuffer);
+		glBufferData(GL_ARRAY_BUFFER, colors.size() * sizeof(glm::vec3), colors.data(), GL_STATIC_DRAW);
+		GLuint col = glGetAttribLocation(programId, "color");
+		glEnableVertexAttribArray(col);
+		glVertexAttribPointer(col, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+		glGenBuffers(1, &indexBuffer);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer);
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER, currentIndices.size() * sizeof(GLushort), currentIndices.data(), GL_STATIC_DRAW);
+
+		glBindVertexArray(0);
+
+		this->model = glm::translate(glm::mat4(1.0f), glm::vec3(x, y, z));
+	}
+
+	// Render-Funktion direkt in der Klasse
+	void render(cg::GLSLProgram& program, const glm::mat4& projection, const glm::mat4& view) {
+
+		glm::mat4 mvp = projection * view * this->model;
+
+		program.use();
+		program.setUniform("mvp", mvp);
+
+		glBindVertexArray(vao);
+		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_SHORT, 0);
+		glBindVertexArray(0);
+	}
+};
+
+
+// ================================================================================= Ende MySPHERE =================================================================================
+
+
+MySphere sun;
+
 
 // ================================================================================= RENDER SPHERE =================================================================================
 void renderSphere()
@@ -173,23 +294,21 @@ void renderQuad()
   glBindVertexArray(0);
 }
 
+
+
 // ================================================================================= INIT SPHERE =================================================================================
-void initSphere() {
-    // start (0,0,0)
-       //ecken, 5 | 4 mitte | 1 oben | 1 unten (start)
+/*void initSphere() {
+   
+   /* std::vector<glm::vec3> Skalierungsmatrix;
 
-       // 0 0 0 | 1 1 1 | 1 1 -1 | -1 1 1 | -1 1 -1 | 0 2 0
-
-    std::vector<glm::vec3> Skalierungsmatrix;
-
-    // Die 6 Eckpunkte
+   // Die 6 Eckpunkte
     std::vector<glm::vec3> sphereVerticesold = { {
         { 0.0f,  1.0f,  0.0f}, // 0: Oben
         { 0.0f,  -1.0f,  0.0f}, // 1: Unten
-        { -1.0f,  -0.1f,  1.0f}, // 2: VORNE
-        {1.0f,  0.1f,  -1.0f}, // 3: Hinten
-        { 1.0f,  -0.1f,  1.0f}, // 4: Rechts
-        { -1.0f,  0.1f, -1.0f}  // 5: Links
+        { -1.0f,  0.0f,  1.0f}, // 2: VORNE
+        {1.0f,  0.0f,  -1.0f}, // 3: Hinten
+        { 1.0f,  0.0f,  1.0f}, // 4: Rechts
+        { -1.0f,  0.0f, -1.0f}  // 5: Links
     } };
 
 
@@ -198,16 +317,14 @@ void initSphere() {
     std::vector<glm::vec3> sphereVerticesWithoutSubdivision = {
     {  0.0f,       1.0f,   0.0f },       // 0: Oben (bleibt gleich, da auf der Drehachse)
     {  0.0f,      -1.0f,   0.0f },       // 1: Unten (bleibt gleich, da auf der Drehachse)
-    {  0.245576f, -0.1f,   1.392728f },  // 2: VORNE
+    {  0.245576f, -0.f,   1.392728f },  // 2: VORNE
     { -0.245576f,  0.1f,  -1.392728f },  // 3: Hinten
     {  1.392728f, 0.0f,  -0.245576f },   // 4: Rechts
     { -1.392728f,  0.0f,   0.245576f }   // 5: Links
-
-
-
-
     };
-
+    
+    // 
+    sphereVerticesWithoutSubdivision = sphereVerticesold;
 
     // 24 Indizes für die 8 Dreiecke 
     std::vector<GLushort> sphereIndicesWithoutSubdivision = {
@@ -245,9 +362,13 @@ void initSphere() {
     // Für jeden generierten Punkt exakt einen Farbwert anlegen
     for (size_t i = 0; i < sphereVertices.size(); i++) {
         colors.push_back(glm::vec3(1.0f, 1.0f, 0.0f)); // Alles Gelb
-    }
+    }*/
 
 
+
+
+    //======================================================================================================================================================
+    /*
     GLuint programId = program.getHandle();
     GLuint pos;
 
@@ -285,43 +406,39 @@ void initSphere() {
 
     // Modify model matrix.Kugel liegt jetzt im Mittelpunkt
     sphere.model = glm::mat4(1.0f);
-
-    
-
-
-
+   
 
     // ============================================================================== Koordinaten ==============================================================================
 
    // X rot (um -5 Grad um Y gedreht)
-	glm::vec3 minusXline(0.0f, 0.0f, 0.0f);
-	glm::vec3 plusXline(1.392728f, 0.0f, -0.245576f);
+	//glm::vec3 minusXline(0.0f, 0.0f, 0.0f);
+	//glm::vec3 plusXline(1.0f, 0.0f, 0.0f);
      
-	// Y blau (bleibt bei Y-Rotation völlig unverändert)
-	glm::vec3 minusYline(0.0f, 0.0f, 0.0f);
+	//Y blau (bleibt bei Y-Rotation völlig unverändert)
+	glm::vec3 minusYline(0.0f, -1.0f, 0.0f);
 	glm::vec3 plusYline(0.0f, 1.0f, 0.0f);
 
 	// Z lila/magenta (um -5 Grad um Y gedreht)
-	glm::vec3 minusZline(0.0f, 0.0f, 0.0f);
-	glm::vec3 plusZline(0.245576f, -0.1f, 1.392728f);
+	//glm::vec3 minusZline(0.0f, 0.0f, 0.0f);
+	//glm::vec3 plusZline(0.0f, 0.0f, 1.0f);
 
     std::vector<glm::vec3> koordList;
 
-	koordList.push_back(minusXline);//0
-	koordList.push_back(plusXline);//1
+	//koordList.push_back(minusXline);//0
+	//koordList.push_back(plusXline);//1
 
 	koordList.push_back(minusYline);//2
 	koordList.push_back(plusYline);
 
-	koordList.push_back(minusZline);
-	koordList.push_back(plusZline);
+    //koordList.push_back(minusZline);
+    //koordList.push_back(plusZline);
 
     std::vector<GLushort> koordIndiceList = { 0, 1, 2, 3, 4, 5 };
 
 
     std::vector<glm::vec3> koordColors = {
-		glm::vec3(1.0f, 0.0f, 0.0f),
-		glm::vec3(1.0f, 0.0f, 0.0f),
+		glm::vec3(1.0f, 1.0f, 0.0f),
+		glm::vec3(1.0f, 1.0f, 0.0f),
 		glm::vec3(0.0f, 0.0f, 1.0f),
 		glm::vec3(0.0f, 0.0f, 1.0f),
 		glm::vec3(0.0f, 1.0f, 0.0f) ,
@@ -430,13 +547,7 @@ void initSphere() {
     normales.model = glm::mat4(1.0f);
 
     // ==================================================================== ROtation faken ===================================================================================
-	for (int x = 0; x < xRotation; x++) {
-
-		// Rotationsmatrix für X-Achse erzeugen und auf alle Objekte anwenden
-		sphere.model = glm::rotate(sphere.model, glm::radians(-5.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-		normales.model = glm::rotate(normales.model, glm::radians(-5.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-		koords.model = glm::rotate(koords.model, glm::radians(-5.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-	}
+	
 	for (int y = 0; y < yRotation; y++) {
 
 		// Rotationsmatrix für X-Achse erzeugen und auf alle Objekte anwenden
@@ -451,12 +562,20 @@ void initSphere() {
 		normales.model = glm::rotate(normales.model, glm::radians(-5.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 		koords.model = glm::rotate(koords.model, glm::radians(-5.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 	}
+	for (int x = 0; x < xRotation; x++) {
 
-}
+		// Rotationsmatrix für X-Achse erzeugen und auf alle Objekte anwenden
+		sphere.model = glm::rotate(sphere.model, glm::radians(-5.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+		normales.model = glm::rotate(normales.model, glm::radians(-5.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+		koords.model = glm::rotate(koords.model, glm::radians(-5.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+	}
+    
+}*/
 
 
 
-std::vector<GLushort> calcIndices(std::vector<glm::vec3> subTriangles) {
+
+std::vector<GLushort> calcIndices(int n, std::vector<glm::vec3> subTriangles) {
 	std::vector<GLushort> sphereIndicesWithSubdivision;
 
 	int numFaces = 8; // Unser Basis-Oktaeder hat 8 Flächen
@@ -508,7 +627,7 @@ std::vector<GLushort> calcIndices(std::vector<glm::vec3> subTriangles) {
 
 
 
-std::vector<glm::vec3> calcSphereVertices(std::vector<glm::vec3> sphereVerticesWithoutSubdivision, std::vector<GLushort> sphereIndicesWithoutSubdivision, glm::vec3 center)
+std::vector<glm::vec3> calcSphereVertices(int n, std::vector<glm::vec3> sphereVerticesWithoutSubdivision, std::vector<GLushort> sphereIndicesWithoutSubdivision, glm::vec3 center)
 {
 	std::vector<glm::vec3> subTriangles; 
 
@@ -721,7 +840,17 @@ bool init()
   //initQuad(colors);
   //initTriangle();
 
-  initSphere();
+
+  // =======================================================================INit sphre auf crack:
+  //MySphere mySphere; // Dein neues globales Kugel-Objekt
+  float currentRadius = 0.5f; // Optional: um Radius für die Tastatur zu speichern
+  int currentSubdivisions = 3; // Optional: um n für die Tastatur zu speichern
+  GLuint programId = program.getHandle();
+
+  // Klasse aufrufen: n=3, radius=0.5, x=0, y=0, z=0, color=gelb
+  sun.init(currentSubdivisions, currentRadius, 0.0f, 0.0f, 0.0f, glm::vec3(1.0f, 1.0f, 0.0f), programId);
+
+
   return true;
 }
 
@@ -734,13 +863,18 @@ void render()
 {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+
+	sun.render(program, projection, view);
+
 	//renderTriangle();
 	//renderQuad();
-    renderSphere();
-    if (normalen) {
-        renderNormales();
-    }
-    renderKoords();
+
+                            // unsicher ob das passt
+
+    // fjdslkfklasdjf
+
+
+
 }
 
 void glutDisplay ()
@@ -776,91 +910,92 @@ void glutKeyboard (unsigned char keycode, int x, int y)
         glutDestroyWindow(glutID);
         return;
 
-    case '+':
-        if (n == 4) { break; }
-        n += 1;
-        initSphere(); //Größe nicht verändern
-
-        break;
+   case '+':
+        //if (currentSubdivisions == 4) break;
+        //currentSubdivisions++;
+        // Init neu aufrufen, damit die Geometrie neu berechnet wird
+        //sun.init(currentSubdivisions, currentRadius, 0.0f, 0.0f, 0.0f, glm::vec3(1.0f, 1.0f, 0.0f), program.getHandle());
+    break;
     case '-':
-        if (n == 0) { break; }
-        n -= 1;
-        initSphere(); //Größe nicht verändern
+        //if (n == 0) { break; }
+        //n -= 1;
+        //initSphere(); //Größe nicht verändern
 
         break;
     case 'x':
         // Rotationsmatrix für X-Achse erzeugen und auf alle Objekte anwenden
-        //sphere.model = glm::rotate(sphere.model, glm::radians(-5.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-        //normales.model = glm::rotate(normales.model, glm::radians(-5.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-        //koords.model = glm::rotate(koords.model, glm::radians(-5.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+        sphere.model = glm::rotate(sphere.model, glm::radians(-5.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+        normales.model = glm::rotate(normales.model, glm::radians(-5.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+        koords.model = glm::rotate(koords.model, glm::radians(-5.0f), glm::vec3(1.0f, 0.0f, 0.0f));
         xRotation = (xRotation + 1) % 72; // bei 360 wieder auf 0
-        initSphere();
+        //initSphere();
         break;
 
     case 'y':
         // Rotationsmatrix für Y-Achse erzeugen und auf alle Objekte anwenden
-        //sphere.model = glm::rotate(sphere.model, glm::radians(-5.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        //normales.model = glm::rotate(normales.model, glm::radians(-5.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        //koords.model = glm::rotate(koords.model, glm::radians(-5.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        sphere.model = glm::rotate(sphere.model, glm::radians(-5.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        normales.model = glm::rotate(normales.model, glm::radians(-5.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        koords.model = glm::rotate(koords.model, glm::radians(-5.0f), glm::vec3(0.0f, 1.0f, 0.0f));
         yRotation = (yRotation + 1) % 72; // bei 360 wieder auf 0
-        initSphere();
+        //initSphere();
         break;
 
     case 'z':
         // Rotationsmatrix für Z-Achse erzeugen und auf alle Objekte anwenden
-        //sphere.model = glm::rotate(sphere.model, glm::radians(-5.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        //normales.model = glm::rotate(normales.model, glm::radians(-5.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        //koords.model = glm::rotate(koords.model, glm::radians(-5.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        sphere.model = glm::rotate(sphere.model, glm::radians(-5.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        normales.model = glm::rotate(normales.model, glm::radians(-5.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        koords.model = glm::rotate(koords.model, glm::radians(-5.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         zRotation = (zRotation + 1) % 72; // bei 360 wieder auf 0
-        initSphere();
+        //initSphere();
         break;
-    case 'r': // Kleiner machen (z.B. um den Faktor 0.9
-        if (size > 0.1)
-        {
-            //sphere.model = glm::scale(sphere.model, glm::vec3(0.9f));
+    
+    //case 'r': // Kleiner machen (z.B. um den Faktor 0.9
+        //if (size > 0.1)
+        //{
+        //    //sphere.model = glm::scale(sphere.model, glm::vec3(0.9f));
             //normales.model = glm::scale(normales.model, glm::vec3(0.9f));
-            size -= 0.1f;
-            initSphere();
-        }
+        //    size -= 0.1f;
+        //    initSphere();
+        //}
 
         // koords.model weglassen, wenn das Achsenkreuz seine feste Größe behalten soll!
-        break;
+        //break;
 
-    case 'R': // Größer machen (z.B. um den Faktor 1.1)
+    //case 'R': // Größer machen (z.B. um den Faktor 1.1)
 
-        if (size < 2)
-        {
+        // if (size < 2)
+        //{
 
             //sphere.model = glm::scale(sphere.model, glm::vec3(1.1f));
             //normales.model = glm::scale(normales.model, glm::vec3(1.1f));
-            size += 0.1;
-            initSphere();
-        }
-        break;
-    case 'l':
+           // size += 0.1;
+          //  initSphere();
+      //  }
+	//    break;
+		//  case 'l':
         // true false "switch" für normale
-        normalen = !normalen;
-        break;
+	//    normalen = !normalen;
+		//     break;
 
-    case 'a':
+		// case 'a':
         
-        CZoom += 0.1;
-        init();
-        break;
+		//  CZoom += 0.1;
+		//   init();
+		//   break;
 
-    case 's':
+		//  case 's':
         
-        CZoom -= 0.1f;
-        init();
-        break;
+       // CZoom -= 0.1f;
+		// init();
+	 //   break;
 
-    case 'n':
+		//case 'n':
     // true false "switch" für normale
-        xRotation = 0;
-		yRotation = 0;
-		zRotation = 0;
-        initSphere();
-        break;
+       // xRotation = 0;
+	//	yRotation = 0;
+		//zRotation = 0;
+		//initSphere();
+	  //  break;
         
     glutPostRedisplay();
 
@@ -932,220 +1067,5 @@ int main(int argc, char** argv){
   
   return 0;
 }
-
-
-// ======================================================================= Blatt01 Start =======================================================================
-void readInLoop() {
-	std::string command;
-	do {
-		std::cout << "CMY, HSV für eine Umrechnung oder exit, um zum render Loop der Formen zu kommen" << std::endl;
-		std::cin >> command;
-		if (command == "CMY") {
-			std::cout << "Gib die Werte für c, m, y ein" << std::endl;
-			float c;
-			std::cin >> c;
-			float m;
-			std::cin >> m;
-			float y;
-			std::cin >> y;
-
-			glm::vec3 input(c, m, y);
-
-			//CMYtoRGB(input);
-			CMYtoHSV(input);
-		}
-		if (command == "HSV") {
-			std::cout << "Gib die Werte für r, g, b ein" << std::endl;
-			float r;
-			std::cin >> r;
-			float g;
-			std::cin >> g;
-			float b;
-			std::cin >> b;
-
-			glm::vec3 input(r, g, b);
-			//HSVtoRGB(input);
-			HSVtoCMY(input);
-		}
-	} while (command != "exit");
-
-}
-
-
-glm::vec3 CMYtoRGB(glm::vec3 input) {
-    float c = input.x;
-    float m = input.y;
-    float y = input.z;
-
-    float r = 1 - c;
-    float g = 1 - m;
-    float b = 1 - y;
-
-    std::cout << "========= Ausgabe (CMYtoRGB) =========" << std::endl;
-    std::cout << r << "," << g << "," << b << std::endl;
-
-
-    return glm::vec3(r, g, b);
-}
-
-
-glm::vec3 CMYtoHSV(glm::vec3 input) {
-    glm::vec3 rgb = CMYtoRGB(input);
-    return RGBtoHSV(rgb);
-}
-
-glm::vec3 RGBtoHSV(glm::vec3 input) {
-    float r = input.x;
-    float g = input.y;
-    float b = input.z;
-
-    float minV = min(input);
-    float maxV = max(input);
-
-    float v = maxV;
-
-    float delta = (maxV - minV);
-    float s = delta / maxV;
-
-    float h = 0;
-
-    if (delta == 0) {
-        h = 0;
-        s = 0;
-    }
-    else {
-        if (v == r) {
-            h = 60 * ((g - b) / delta);
-        }
-        else if (v==g) {
-            h = 60 * (2 + (b - r) / delta);
-        }
-        else {
-            h = 60 * (4 + (r - g) / delta);
-        }
-        if (h < 0) {        //h is a minus value
-            h = h + 360.0f;  
-        }
-    }
-
-    
-    std::cout << "========== Ausgabe HSV (RGBtoHSV)===========" << std::endl;
-    std::cout << h << "," << s << "," << v << std::endl;
-
-    return glm::vec3(h, s, v);
-}
-
-glm::vec3 HSVtoRGB(glm::vec3 input) {
-
-  
-	//H, S and V input range = 0 ÷ 1.0
-	//R, G and B output range = 0 ÷ 255
-    // h s v
-    float h = input.x;
-    float s = input.y;
-    float v = input.z;
-
-
-	float r = 0;
-	float g = 0;
-	float b = 0;
-
-    float var_h = 0;
-
-	int var_i = 0;
-	float var_r = 0;
-	float var_g = 0;
-	float var_b = 0;
-	float var_1 = 0;
-	float var_2 = 0;
-	float var_3 = 0;
-
-	if (s == 0)
-	{
-         r = v;
-         g = v;
-         b = v;
-	}
-	else
-	{
-        
-       
-        float var_h = (h/360.0f) * 6.0f;    //dividing hue in 6 circle segments
-        if (var_h == 6.0f) {    //360 degree = 0 degree
-            var_h = 0;
-        }      //H must be < 1
-
-        var_i = int(var_h);             //Or ... var_i = floor( var_h ); cuts of the decimal numbers
-        var_1 = v * (1.0f - s);                             //-> p dominant color
-        var_2 = v * (1.0f - s * (var_h - var_i));           //-> q ; f = var_h - var_i: extracts the decimal number, fading color
-        var_3 = v * (1.0f - s * (1.0f - (var_h - var_i)));  //-> t, intensifying color
-        
-        if (var_i == 0) { var_r = v; var_g = var_3; var_b = var_1; }        //red -> yellow
-        else if (var_i == 1) { var_r = var_2; var_g = v; var_b = var_1; }   //yellow -> green
-        else if (var_i == 2) { var_r = var_1; var_g = v; var_b = var_3; }   //green -> cyan
-        else if (var_i == 3) { var_r = var_1; var_g = var_2; var_b = v; }   //cyan -> blue
-        else if (var_i == 4) { var_r = var_3; var_g = var_1; var_b = v; }   //blue -> magenta
-		else { var_r = v; var_g = var_1; var_b = var_2; }                   //magenta -> red
-
-        r = var_r;
-        g = var_g;
-        b = var_b;
-	}
-
-    std::cout << "=========== Ausgabe (HSVtoRGB) ===========" << std::endl;
-    std::cout << r << "," << g << "," << b << std::endl;
-
-    return glm::vec3(r, g, b);
-}
-
-glm::vec3 HSVtoCMY(glm::vec3 input){
-    glm::vec3 rgb = HSVtoRGB(input);
-    return RGBtoCMY(rgb);
-}
-
-glm::vec3 RGBtoCMY(glm::vec3 input) {
-	
-    float r = input.x;
-	float g = input.y;
-	float b = input.z;
-
-	float c = 1 - r;
-	float m = 1 - g;
-	float y = 1 - b;
-
-	std::cout << "========= Ausgabe (RGBtoCMY) =========" << std::endl;
-	std::cout << c << "," << m << "," << y << std::endl;
-
-	return glm::vec3(c, m, y);
-}
-
-float min(glm::vec3 input) {
-    if (input.x <= input.y && input.x <= input.z) {
-        return input.x;
-    }
-    else if (input.y <= input.x && input.y <= input.z) {
-        return input.y;
-    }
-    else {
-        return input.z;
-    }
-}
-
-float max(glm::vec3 input) {
-    if (input.x >= input.y && input.x >= input.z) {
-        return input.x;
-    }
-    else if (input.y >= input.x && input.y >= input.z) {
-        return input.y;
-    }
-    else {
-        return input.z;
-    }
-}
-
-// ======================================================================= Blatt01 End =======================================================================
-
-
-// ======================================================================= Blatt0 Start =======================================================================
 
 
