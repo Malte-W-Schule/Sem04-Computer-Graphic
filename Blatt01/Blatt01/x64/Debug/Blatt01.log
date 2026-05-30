@@ -1,6 +1,5 @@
-﻿  GLSLProgram.cpp
-  main.cpp
-  Code wird generiert...
+﻿  main.cpp
+C:\Users\Sarah Kirchhof\Desktop\WICHTIGE_HSBI_SACHEN\viertes_semester\Grafik\Sem04-Computer-Graphic\Blatt01\main.cpp(158,41): warning C4267: "=": Konvertierung von "size_t" nach "int", Datenverlust möglich
 libglew32d.lib(glew.obj) : warning LNK4099: PDB "glew_s.pdb" wurde nicht mit "libglew32d.lib(glew.obj)" oder an "C:\Users\Sarah Kirchhof\Desktop\WICHTIGE_HSBI_SACHEN\viertes_semester\Grafik\Sem04-Computer-Graphic\Blatt01\x64\Debug\glew_s.pdb" gefunden; Objekt wird verknüpft, als ob keine Debuginformationen vorhanden wären.
 freeglut_staticd.lib(fg_init.obj) : warning LNK4099: PDB "freeglut_static.pdb" wurde nicht mit "freeglut_staticd.lib(fg_init.obj)" oder an "C:\Users\Sarah Kirchhof\Desktop\WICHTIGE_HSBI_SACHEN\viertes_semester\Grafik\Sem04-Computer-Graphic\Blatt01\x64\Debug\freeglut_static.pdb" gefunden; Objekt wird verknüpft, als ob keine Debuginformationen vorhanden wären.
 freeglut_staticd.lib(fg_main.obj) : warning LNK4099: PDB "freeglut_static.pdb" wurde nicht mit "freeglut_staticd.lib(fg_main.obj)" oder an "C:\Users\Sarah Kirchhof\Desktop\WICHTIGE_HSBI_SACHEN\viertes_semester\Grafik\Sem04-Computer-Graphic\Blatt01\x64\Debug\freeglut_static.pdb" gefunden; Objekt wird verknüpft, als ob keine Debuginformationen vorhanden wären.
@@ -40,4 +39,5 @@ freeglut_staticd.lib(fg_ext_mswin.obj) : warning LNK4099: PDB "freeglut_static.p
 freeglut_staticd.lib(fg_font_data.obj) : warning LNK4099: PDB "freeglut_static.pdb" wurde nicht mit "freeglut_staticd.lib(fg_font_data.obj)" oder an "C:\Users\Sarah Kirchhof\Desktop\WICHTIGE_HSBI_SACHEN\viertes_semester\Grafik\Sem04-Computer-Graphic\Blatt01\x64\Debug\freeglut_static.pdb" gefunden; Objekt wird verknüpft, als ob keine Debuginformationen vorhanden wären.
 freeglut_staticd.lib(fg_stroke_roman.obj) : warning LNK4099: PDB "freeglut_static.pdb" wurde nicht mit "freeglut_staticd.lib(fg_stroke_roman.obj)" oder an "C:\Users\Sarah Kirchhof\Desktop\WICHTIGE_HSBI_SACHEN\viertes_semester\Grafik\Sem04-Computer-Graphic\Blatt01\x64\Debug\freeglut_static.pdb" gefunden; Objekt wird verknüpft, als ob keine Debuginformationen vorhanden wären.
 freeglut_staticd.lib(fg_stroke_mono_roman.obj) : warning LNK4099: PDB "freeglut_static.pdb" wurde nicht mit "freeglut_staticd.lib(fg_stroke_mono_roman.obj)" oder an "C:\Users\Sarah Kirchhof\Desktop\WICHTIGE_HSBI_SACHEN\viertes_semester\Grafik\Sem04-Computer-Graphic\Blatt01\x64\Debug\freeglut_static.pdb" gefunden; Objekt wird verknüpft, als ob keine Debuginformationen vorhanden wären.
-  Blatt01.vcxproj -> C:\Users\Sarah Kirchhof\Desktop\WICHTIGE_HSBI_SACHEN\viertes_semester\Grafik\Sem04-Computer-Graphic\Blatt01\x64\Debug\Blatt01.exe
+main.obj : error LNK2019: Verweis auf nicht aufgelöstes externes Symbol ""struct glm::tvec3<float,0> __cdecl CMYtoRGB(struct glm::tvec3<float,0>)" (?CMYtoRGB@@YA?AU?$tvec3@M$0A@@glm@@U12@@Z)" in Funktion ""void __cdecl initTriangle(void)" (?initTriangle@@YAXXZ)".
+C:\Users\Sarah Kirchhof\Desktop\WICHTIGE_HSBI_SACHEN\viertes_semester\Grafik\Sem04-Computer-Graphic\Blatt01\x64\Debug\Blatt01.exe : fatal error LNK1120: 1 nicht aufgelöste Externe
