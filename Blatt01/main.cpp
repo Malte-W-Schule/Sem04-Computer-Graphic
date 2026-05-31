@@ -107,48 +107,49 @@ private:
 	int n; // subdivisions
 	int indexCount;
 
-	// OpenGL Puffer-IDs
+	// OpenGL Puffer-IDs für die Kugel
 	GLuint vao;
 	GLuint positionBuffer;
 	GLuint colorBuffer;
 	GLuint indexBuffer;
 
+	// OpenGL Puffer-IDs für die Achsen (NEU)
+	GLuint axisVao;
+	GLuint axisPositionBuffer;
+	GLuint axisColorBuffer;
+	GLuint axisIndexBuffer;
+
 public:
+
+    glm::vec3 center;
 	// Die Modellmatrix gehört zum Objekt
 	glm::mat4 model;
+    glm::mat4 axis_model;
+    bool has_axis;
 
 	// Konstruktor
 	MySphere() : vao(0), positionBuffer(0), colorBuffer(0), indexBuffer(0), indexCount(0), n(3), model(glm::mat4(1.0f)) {}
 
-	// Initialisierung
-	void init(int subdivisions, float radius, float x, float y, float z, glm::vec3 color, GLuint programId) {
+	void init(int subdivisions, float radius, float x, float y, float z, glm::vec3 color, GLuint programId, bool has_axis = false) {
 		this->n = subdivisions;
+		this->has_axis = has_axis;
+
+        center = glm::vec3(x, y, z);
 
 		std::vector<glm::vec3> StartVertices = {
-
 			{ 0.0f,  radius,  0.0f}, // Oben
 			{ 0.0f, -radius,  0.0f}, // Unten
-
 			{ radius,  0.0f,  0.0f}, // Rechts
 			{-radius,  0.0f,  0.0f}, // Links
-
 			{ 0.0f,  0.0f,  radius}, // Vorne
 			{ 0.0f,  0.0f, -radius}  // Hinten
 		};
 
 		std::vector<GLushort> StartIndices = {
-
 			// untere hälfte
-			0, 4, 2,
-			0, 2, 5,
-			0, 5, 3,
-			0, 3, 4,
-
+			0, 4, 2,  0, 2, 5,  0, 5, 3,  0, 3, 4,
 			// Obere hälfte
-			1, 2, 4,
-			1, 5, 2,
-			1, 3, 5,
-			1, 4, 3
+			1, 2, 4,  1, 5, 2,  1, 3, 5,  1, 4, 3
 		};
 
 		glm::vec3 center(0.0f, 0.0f, 0.0f);
@@ -157,12 +158,13 @@ public:
 
 		this->indexCount = currentIndices.size();
 
-		// Falls Radius in calcSphereVertices nicht verrechnet wird:
 		for (glm::vec3& v : currentVertices) v *= radius;
-
 		std::vector<glm::vec3> colors(currentVertices.size(), color);
 
-		// Alte Puffer löschen, falls init() neu aufgerufen wird (z.B. bei n++ durch Tastatur)
+
+		// ==========================================
+		// 1. KUGEL INITIALISIEREN
+		// ==========================================
 		if (vao != 0) {
 			glDeleteVertexArrays(1, &vao);
 			glDeleteBuffers(1, &positionBuffer);
@@ -193,20 +195,122 @@ public:
 
 		glBindVertexArray(0);
 
+
+		// ==========================================
+		// 2. ACHSEN INITIALISIEREN (EIGENE PUFFER!)
+		// ==========================================
+		if (has_axis) {
+			std::vector<glm::vec3> axesVertices;
+			std::vector<GLushort> axesIndices = { 0, 1 };
+
+			// Y-Achse (oben und unten)
+			glm::vec3 posAxes = (StartVertices[0] - center) * 2.0f + center;
+			glm::vec3 negAxes = (StartVertices[1] - center) * 2.0f + center;
+
+			axesVertices.push_back(posAxes);
+			axesVertices.push_back(negAxes);
+
+			std::vector<glm::vec3> colorAxes = { glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f) };
+
+			if (axisVao != 0) {
+				glDeleteVertexArrays(1, &axisVao);
+				glDeleteBuffers(1, &axisPositionBuffer);
+				glDeleteBuffers(1, &axisColorBuffer);
+				glDeleteBuffers(1, &axisIndexBuffer);
+			}
+
+			glGenVertexArrays(1, &axisVao);
+			glBindVertexArray(axisVao);
+
+			glGenBuffers(1, &axisPositionBuffer);
+			glBindBuffer(GL_ARRAY_BUFFER, axisPositionBuffer);
+			glBufferData(GL_ARRAY_BUFFER, axesVertices.size() * sizeof(glm::vec3), axesVertices.data(), GL_STATIC_DRAW);
+			glEnableVertexAttribArray(pos);
+			glVertexAttribPointer(pos, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+			glGenBuffers(1, &axisColorBuffer);
+			glBindBuffer(GL_ARRAY_BUFFER, axisColorBuffer);
+			glBufferData(GL_ARRAY_BUFFER, colorAxes.size() * sizeof(glm::vec3), colorAxes.data(), GL_STATIC_DRAW);
+			glEnableVertexAttribArray(col);
+			glVertexAttribPointer(col, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+			glGenBuffers(1, &axisIndexBuffer);
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, axisIndexBuffer);
+			glBufferData(GL_ELEMENT_ARRAY_BUFFER, axesIndices.size() * sizeof(GLushort), axesIndices.data(), GL_STATIC_DRAW);
+
+			glBindVertexArray(0);
+		}
+
+		// Modell-Matrix setzen (wird für Kugel und Achse gemeinsam genutzt)
 		this->model = glm::translate(glm::mat4(1.0f), glm::vec3(x, y, z));
+	}
+
+	void rotateAroundPoint(float angleX, float angleY, float angleZ, glm::vec3 pointToRotateAround) {
+
+		// 1. Wir starten mit einer frischen Matrix, die zum Ursprung des Rotationspunkts verschoben wird
+		glm::mat4 transform = glm::translate(glm::mat4(1.0f), pointToRotateAround);
+
+		// 2. Wir fügen die Rotationen hinzu
+		if (angleX != 0.0f) {
+			transform = glm::rotate(transform, glm::radians(angleX), glm::vec3(1.0f, 0.0f, 0.0f));
+		}
+		if (angleY != 0.0f) {
+			transform = glm::rotate(transform, glm::radians(angleY), glm::vec3(0.0f, 1.0f, 0.0f));
+		}
+		if (angleZ != 0.0f) {
+			transform = glm::rotate(transform, glm::radians(angleZ), glm::vec3(0.0f, 0.0f, 1.0f));
+		}
+
+		// 3. Wir schieben alles wieder zurück
+		transform = glm::translate(transform, -pointToRotateAround);
+
+		// 4. WICHTIG: Die neue Transformation wird *von links* an die bestehende Matrix multipliziert.
+		// Das zwingt das Objekt dazu, sich im globalen Raum zu bewegen, nicht um seine eigene Achse.
+		this->model = transform * this->model;
+	}
+
+
+	void rotate(float angleX, float angleY, float angleZ){
+
+		// 1. Drehung um die X-Achse
+		if (angleX != 0.0f) {
+			this->model = glm::rotate(this->model, glm::radians(angleX), glm::vec3(1.0f, 0.0f, 0.0f));
+		}
+
+		// 2. Drehung um die Y-Achse
+		if (angleY != 0.0f) {
+			this->model = glm::rotate(this->model, glm::radians(angleY), glm::vec3(0.0f, 1.0f, 0.0f));
+		}
+
+		// 3. Drehung um die Z-Achse
+		if (angleZ != 0.0f) {
+			this->model = glm::rotate(this->model, glm::radians(angleZ), glm::vec3(0.0f, 0.0f, 1.0f));
+		}
 	}
 
 	// Render-Funktion direkt in der Klasse
 	void render(cg::GLSLProgram& program, const glm::mat4& projection, const glm::mat4& view) {
 
+		// Gemeinsame MVP Matrix für das Objekt
 		glm::mat4 mvp = projection * view * this->model;
 
 		program.use();
 		program.setUniform("mvp", mvp);
 
+		// --- KUGEL ZEICHNEN ---
 		glBindVertexArray(vao);
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 		glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_SHORT, 0);
+
+		// --- ACHSEN ZEICHNEN ---
+		if (this->has_axis) {
+			// HIER BINDEN WIR DAS EIGENE VAO DER ACHSE
+			glBindVertexArray(axisVao);
+			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+			glDrawElements(GL_LINES, 2, GL_UNSIGNED_SHORT, 0);
+		}
+
+		// Clean-up
 		glBindVertexArray(0);
 	}
 };
@@ -216,6 +320,10 @@ public:
 
 
 MySphere sun;
+MySphere planet_right;
+MySphere planet_left;
+MySphere moon_right;
+MySphere moon_left;
 
 
 // ================================================================================= RENDER SPHERE =================================================================================
@@ -679,7 +787,7 @@ void initTriangle()
 
   // Construct triangle. These vectors can go out of scope after we have send all data to the graphics card.
   const std::vector<glm::vec3> vertices = { glm::vec3(-1.0f, 1.0f, 0.0f), glm::vec3(1.0f, -1.0f, 0.0f), glm::vec3(1.0f, 1.0f, 0.0f) };
-  const std::vector<glm::vec3> colors   = { CMYtoRGB(cmy), glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f)}; // change float numbers between 0-1 to change color, Color Order is: Red/Green/Blue
+  const std::vector<glm::vec3> colors   = { glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f)}; // change float numbers between 0-1 to change color, Color Order is: Red/Green/Blue
   const std::vector<GLushort>  indices  = { 0, 1, 2 };
 
   GLuint programId = program.getHandle();
@@ -848,8 +956,19 @@ bool init()
   GLuint programId = program.getHandle();
 
   // Klasse aufrufen: n=3, radius=0.5, x=0, y=0, z=0, color=gelb
-  sun.init(currentSubdivisions, currentRadius, 0.0f, 0.0f, 0.0f, glm::vec3(1.0f, 1.0f, 0.0f), programId);
+  sun.init(currentSubdivisions, currentRadius, 0.0f, 0.0f, 0.0f, glm::vec3(1.0f, 1.0f, 0.0f), programId, true);
 
+  planet_right.init(currentSubdivisions, 0.3f, 2.0f, 0.0f, 0.0f, glm::vec3(1.0f, 0.0f, 0.0f), programId, true);
+  planet_right.rotate(0.0f, 0.0f, 45.0f);
+  
+
+  planet_left.init(currentSubdivisions, 0.3f, -2.0f, 0.0f, 0.0f, glm::vec3(1.0f, 0.0f, 0.0f), programId, true);
+  
+  moon_right.init(currentSubdivisions, 0.1f, 2.5f, 0.0f, 0.0f, glm::vec3(0.0f, 0.0f, 1.0f), programId, false);
+  moon_right.rotateAroundPoint(0.0f, 0.0f, 45.0f, planet_right.center);
+
+
+  moon_left.init(currentSubdivisions, 0.1f, -2.5f, 0.0f, 0.0f, glm::vec3(0.0f, 0.0f, 1.0f), programId, false);
 
   return true;
 }
@@ -863,18 +982,36 @@ void render()
 {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+	// ==========================================
+	// 1. ANIMATION / UPDATE PHASE
+	// ==========================================
 
+	// Drehe die Planeten in jedem Frame ein winziges Stück um die Sonne (0,0,0)
+	planet_right.rotateAroundPoint(0.0f, 0.5f, 0.0f, sun.center);
+
+	// Lass den linken Planeten z.B. etwas langsamer und andersrum kreisen
+	planet_left.rotateAroundPoint(0.0f, -0.2f, 0.0f, sun.center);
+
+	// Die Sonne dreht sich vielleicht nur um sich selbst?
+	sun.rotateAroundPoint(0.0f, 0.1f, 0.0f, glm::vec3(0.0f, 0.0f, 0.0f));
+
+
+	// ==========================================
+	// 2. ZEICHNEN PHASE
+	// ==========================================
 	sun.render(program, projection, view);
 
-	//renderTriangle();
-	//renderQuad();
+	planet_right.render(program, projection, view);
+	planet_left.render(program, projection, view);
 
-                            // unsicher ob das passt
+	// (Monde erstmal weggelassen, siehe Frage unten)
+	moon_right.render(program, projection, view);
 
-    // fjdslkfklasdjf
+	moon_right.rotateAroundPoint(0.0f, 0.5f, 0.0f, sun.center);
+	//moon_right.rotateAroundPoint(0.0f, 20.0f, 0.0f, planet_right.center);
 
 
-
+	moon_left.render(program, projection, view);
 }
 
 void glutDisplay ()
