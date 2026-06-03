@@ -58,7 +58,6 @@ float CZoom = 4.0f;
 
 class MySphere;
 
-
 // ================================================================================= Size =================================================================================
 
 /*
@@ -124,15 +123,16 @@ public:
     glm::vec3 center;
 	// Die Modellmatrix gehört zum Objekt
 	glm::mat4 model;
-    glm::mat4 axis_model;
     bool has_axis;
-
+    float degree;
+   
 	// Konstruktor
 	MySphere() : vao(0), positionBuffer(0), colorBuffer(0), indexBuffer(0), indexCount(0), n(3), model(glm::mat4(1.0f)) {}
 
-	void init(int subdivisions, float radius, float x, float y, float z, glm::vec3 color, GLuint programId, bool has_axis = false) {
+	void init(int subdivisions, float radius, float x, float y, float z, glm::vec3 color, GLuint programId, float initialDegree, bool has_axis = false) {
 		this->n = subdivisions;
 		this->has_axis = has_axis;
+        this->degree = initialDegree;
 
         center = glm::vec3(x, y, z);
 
@@ -194,7 +194,7 @@ public:
 		glBufferData(GL_ELEMENT_ARRAY_BUFFER, currentIndices.size() * sizeof(GLushort), currentIndices.data(), GL_STATIC_DRAW);
 
 		glBindVertexArray(0);
-
+		
 
 		// ==========================================
 		// 2. ACHSEN INITIALISIEREN (EIGENE PUFFER!)
@@ -239,54 +239,19 @@ public:
 			glBufferData(GL_ELEMENT_ARRAY_BUFFER, axesIndices.size() * sizeof(GLushort), axesIndices.data(), GL_STATIC_DRAW);
 
 			glBindVertexArray(0);
-		}
 
+		}
+        
 		// Modell-Matrix setzen (wird für Kugel und Achse gemeinsam genutzt)
 		this->model = glm::translate(glm::mat4(1.0f), glm::vec3(x, y, z));
+        //this->model = glm::rotate(this->model, glm::radians(initialDegree), glm::vec3(0.0f, 0.0f, 1.0f));
 	}
 
-	void rotateAroundPoint(float angleX, float angleY, float angleZ, glm::vec3 pointToRotateAround) {
+	//setze die kugel + achse auf die neue koordinate
+    void setNewCoordinatesForCenter(float x, float y, float z) {
+       this->center = glm::vec3(x,y,z);
 
-		// 1. Wir starten mit einer frischen Matrix, die zum Ursprung des Rotationspunkts verschoben wird
-		glm::mat4 transform = glm::translate(glm::mat4(1.0f), pointToRotateAround);
-
-		// 2. Wir fügen die Rotationen hinzu
-		if (angleX != 0.0f) {
-			transform = glm::rotate(transform, glm::radians(angleX), glm::vec3(1.0f, 0.0f, 0.0f));
-		}
-		if (angleY != 0.0f) {
-			transform = glm::rotate(transform, glm::radians(angleY), glm::vec3(0.0f, 1.0f, 0.0f));
-		}
-		if (angleZ != 0.0f) {
-			transform = glm::rotate(transform, glm::radians(angleZ), glm::vec3(0.0f, 0.0f, 1.0f));
-		}
-
-		// 3. Wir schieben alles wieder zurück
-		transform = glm::translate(transform, -pointToRotateAround);
-
-		// 4. WICHTIG: Die neue Transformation wird *von links* an die bestehende Matrix multipliziert.
-		// Das zwingt das Objekt dazu, sich im globalen Raum zu bewegen, nicht um seine eigene Achse.
-		this->model = transform * this->model;
-	}
-
-
-	void rotate(float angleX, float angleY, float angleZ){
-
-		// 1. Drehung um die X-Achse
-		if (angleX != 0.0f) {
-			this->model = glm::rotate(this->model, glm::radians(angleX), glm::vec3(1.0f, 0.0f, 0.0f));
-		}
-
-		// 2. Drehung um die Y-Achse
-		if (angleY != 0.0f) {
-			this->model = glm::rotate(this->model, glm::radians(angleY), glm::vec3(0.0f, 1.0f, 0.0f));
-		}
-
-		// 3. Drehung um die Z-Achse
-		if (angleZ != 0.0f) {
-			this->model = glm::rotate(this->model, glm::radians(angleZ), glm::vec3(0.0f, 0.0f, 1.0f));
-		}
-	}
+    }
 
 	// Render-Funktion direkt in der Klasse
 	void render(cg::GLSLProgram& program, const glm::mat4& projection, const glm::mat4& view) {
@@ -304,6 +269,9 @@ public:
 
 		// --- ACHSEN ZEICHNEN ---
 		if (this->has_axis) {
+			glm::mat4 mvpAxis = projection * view * this->model;
+			//program.setUniform("mvp", mvpAxis);
+			
 			// HIER BINDEN WIR DAS EIGENE VAO DER ACHSE
 			glBindVertexArray(axisVao);
 			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -314,10 +282,17 @@ public:
 		glBindVertexArray(0);
 	}
 };
-
-
 // ================================================================================= Ende MySPHERE =================================================================================
-
+//berechne den kreis auf dem bewegt wird
+void rotateVectorFromSphere(MySphere& middle, MySphere& toRotate) {
+    glm::vec3 vectorFromCenterToCenterOfTwoSpeheres = toRotate.center - middle.center;
+    vectorFromCenterToCenterOfTwoSpeheres = glm::rotate(vectorFromCenterToCenterOfTwoSpeheres, glm::radians(0.5f), glm::vec3(0.0f, 1.0f, 0.0f));
+    glm::vec3 newCenter = middle.center + vectorFromCenterToCenterOfTwoSpeheres;
+    //glm::vec3 vectorOffsetModel = newCenter - toRotate.center;
+    toRotate.setNewCoordinatesForCenter(newCenter[0], newCenter[1], newCenter[2]);
+    toRotate.model = glm::translate(toRotate.model, newCenter);
+    
+}
 
 MySphere sun;
 MySphere planet_right;
@@ -956,23 +931,20 @@ bool init()
   GLuint programId = program.getHandle();
 
   // Klasse aufrufen: n=3, radius=0.5, x=0, y=0, z=0, color=gelb
-  sun.init(currentSubdivisions, currentRadius, 0.0f, 0.0f, 0.0f, glm::vec3(1.0f, 1.0f, 0.0f), programId, true);
+  sun.init(currentSubdivisions, currentRadius, 0.0f, 0.0f, 0.0f, glm::vec3(1.0f, 1.0f, 0.0f), programId, 0.0f, true);
 
-  planet_right.init(currentSubdivisions, 0.3f, 2.0f, 0.0f, 0.0f, glm::vec3(1.0f, 0.0f, 0.0f), programId, true);
-  planet_right.rotate(0.0f, 0.0f, 45.0f);
+  planet_right.init(currentSubdivisions, 0.3f, 2.0f, 0.0f, 0.0f, glm::vec3(1.0f, 0.0f, 0.0f), programId, 45.0f, true);
+ 
+  planet_left.init(currentSubdivisions, 0.3f, -2.0f, 0.0f, 0.0f, glm::vec3(1.0f, 0.0f, 0.0f), programId, 0.0f, true);
   
-
-  planet_left.init(currentSubdivisions, 0.3f, -2.0f, 0.0f, 0.0f, glm::vec3(1.0f, 0.0f, 0.0f), programId, true);
-  
-  moon_right.init(currentSubdivisions, 0.1f, 2.5f, 0.0f, 0.0f, glm::vec3(0.0f, 0.0f, 1.0f), programId, false);
-  moon_right.rotateAroundPoint(0.0f, 0.0f, 45.0f, planet_right.center);
-
-
-  moon_left.init(currentSubdivisions, 0.1f, -2.5f, 0.0f, 0.0f, glm::vec3(0.0f, 0.0f, 1.0f), programId, false);
+  moon_right.init(currentSubdivisions, 0.1f, 2.5f, 0.0f, 0.0f, glm::vec3(0.0f, 0.0f, 1.0f), programId, 0.0f, false);
+ 
+  moon_left.init(currentSubdivisions, 0.1f, -2.5f, 0.0f, 0.0f, glm::vec3(0.0f, 0.0f, 1.0f), programId, 0.0f, false);
 
   return true;
 }
 
+bool start = true;
 
 // ================================================================================= RENDER =================================================================================
 /*
@@ -985,32 +957,19 @@ void render()
 	// ==========================================
 	// 1. ANIMATION / UPDATE PHASE
 	// ==========================================
-
-	// Drehe die Planeten in jedem Frame ein winziges Stück um die Sonne (0,0,0)
-	planet_right.rotateAroundPoint(0.0f, 0.5f, 0.0f, sun.center);
-
-	// Lass den linken Planeten z.B. etwas langsamer und andersrum kreisen
-	planet_left.rotateAroundPoint(0.0f, -0.2f, 0.0f, sun.center);
-
-	// Die Sonne dreht sich vielleicht nur um sich selbst?
-	sun.rotateAroundPoint(0.0f, 0.1f, 0.0f, glm::vec3(0.0f, 0.0f, 0.0f));
-
+    rotateVectorFromSphere(sun, planet_right);
+    rotateVectorFromSphere(sun, planet_left);
 
 	// ==========================================
 	// 2. ZEICHNEN PHASE
 	// ==========================================
 	sun.render(program, projection, view);
-
+    
 	planet_right.render(program, projection, view);
 	planet_left.render(program, projection, view);
 
 	// (Monde erstmal weggelassen, siehe Frage unten)
 	moon_right.render(program, projection, view);
-
-	moon_right.rotateAroundPoint(0.0f, 0.5f, 0.0f, sun.center);
-	//moon_right.rotateAroundPoint(0.0f, 20.0f, 0.0f, planet_right.center);
-
-
 	moon_left.render(program, projection, view);
 }
 
