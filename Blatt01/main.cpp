@@ -253,7 +253,6 @@ public:
 		// Modell-Matrix setzen (wird für Kugel und Achse gemeinsam genutzt)
 		this->translationModel = glm::translate(glm::mat4(1.0f), glm::vec3(x, y, z));
         this->rotationModel = glm::rotate(glm::mat4(1.0f), glm::radians(initialDegree), glm::vec3(0.0f, 0.0f, 1.0f));
-        this->axisModel = translationModel * rotationModel;
         this->SphereModel = translationModel * rotationModel;
 	}
 
@@ -279,7 +278,7 @@ public:
 
 		// --- ACHSEN ZEICHNEN ---
 		if (this->has_axis) {
-			glm::mat4 mvpAxis = projection * view * this->axisModel;
+			glm::mat4 mvpAxis = projection * view * this->SphereModel;
 			program.setUniform("mvp", mvpAxis);
 			
 			// HIER BINDEN WIR DAS EIGENE VAO DER ACHSE
@@ -302,23 +301,7 @@ void rotateVectorFromSphere(MySphere& middle, MySphere& toRotate, float orbitLen
     toRotate.setNewCoordinatesForCenter(newCenter[0], newCenter[1], newCenter[2]);
     toRotate.translationModel = glm::translate(glm::mat4(1.0f), toRotate.center);
     toRotate.rotationModel = glm::rotate(glm::mat4(1.0f), glm::radians(toRotate.degree), glm::vec3(1.0f, 0.0f, 0.0f));
-    toRotate.SphereModel = toRotate.translationModel * toRotate.rotationModel;
-    toRotate.axisModel = toRotate.translationModel* toRotate.axisRotationModel;
-    
-   // toRotate.init(3, toRotate.r, newCenter[0], newCenter[1], newCenter[2], glm::vec3(1.0f, 0.0f, 0.0f), program.getHandle(), toRotate.degree, toRotate.has_axis);
-}
-
-void rotateVectorFromPlanet(MySphere& middle, MySphere& toRotate) {
-    glm::vec3 vectorFromCenterToCenterOfTwoSpeheres = toRotate.center - middle.center;
-    vectorFromCenterToCenterOfTwoSpeheres = glm::rotate(vectorFromCenterToCenterOfTwoSpeheres, glm::radians(0.3f), glm::vec3(0.0f, 1.0f, 0.0f));
-    glm::vec3 newCenter = middle.center + vectorFromCenterToCenterOfTwoSpeheres;
-    toRotate.setNewCoordinatesForCenter(newCenter[0], newCenter[1], newCenter[2]);
-    toRotate.translationModel = glm::translate(glm::mat4(1.0f), toRotate.center);
-    toRotate.rotationModel = glm::rotate(glm::mat4(1.0f), glm::radians(toRotate.degree), glm::vec3(1.0f, 0.0f, 0.0f));
-    toRotate.SphereModel = toRotate.translationModel * toRotate.rotationModel;
-    toRotate.axisModel = toRotate.translationModel * toRotate.axisRotationModel;
-
-    // toRotate.init(3, toRotate.r, newCenter[0], newCenter[1], newCenter[2], glm::vec3(1.0f, 0.0f, 0.0f), program.getHandle(), toRotate.degree, toRotate.has_axis);
+    toRotate.SphereModel = toRotate.translationModel * toRotate.axisRotationModel;
 }
 
 
