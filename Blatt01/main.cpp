@@ -123,8 +123,15 @@ public:
     glm::vec3 center;
 	// Die Modellmatrix gehört zum Objekt
 	glm::mat4 model;
+    glm::mat4 translationModel;
+    glm::mat4 rotationModel;
+    glm::mat4 axisModel;
+    glm::mat4 SphereModel;
     bool has_axis;
     float degree;
+    float r;
+
+    glm::mat4 axisRotationModel; 
    
 	// Konstruktor
 	MySphere() : vao(0), positionBuffer(0), colorBuffer(0), indexBuffer(0), indexCount(0), n(3), model(glm::mat4(1.0f)) {}
@@ -133,7 +140,8 @@ public:
 		this->n = subdivisions;
 		this->has_axis = has_axis;
         this->degree = initialDegree;
-
+        this->r = radius;
+        this->axisRotationModel =glm::rotate(glm::mat4(1.0f), glm::radians(initialDegree),glm::vec3(0.0f, 0.0f, 1.0f));
         center = glm::vec3(x, y, z);
 
 		std::vector<glm::vec3> StartVertices = {
@@ -243,8 +251,10 @@ public:
 		}
         
 		// Modell-Matrix setzen (wird für Kugel und Achse gemeinsam genutzt)
-		this->model = glm::translate(glm::mat4(1.0f), glm::vec3(x, y, z));
-        //this->model = glm::rotate(this->model, glm::radians(initialDegree), glm::vec3(0.0f, 0.0f, 1.0f));
+		this->translationModel = glm::translate(glm::mat4(1.0f), glm::vec3(x, y, z));
+        this->rotationModel = glm::rotate(glm::mat4(1.0f), glm::radians(initialDegree), glm::vec3(0.0f, 0.0f, 1.0f));
+        this->axisModel = translationModel * rotationModel;
+        this->SphereModel = translationModel * rotationModel;
 	}
 
 	//setze die kugel + achse auf die neue koordinate
@@ -257,7 +267,7 @@ public:
 	void render(cg::GLSLProgram& program, const glm::mat4& projection, const glm::mat4& view) {
 
 		// Gemeinsame MVP Matrix für das Objekt
-		glm::mat4 mvp = projection * view * this->model;
+		glm::mat4 mvp = projection * view * this->SphereModel;
 
 		program.use();
 		program.setUniform("mvp", mvp);
@@ -269,8 +279,8 @@ public:
 
 		// --- ACHSEN ZEICHNEN ---
 		if (this->has_axis) {
-			glm::mat4 mvpAxis = projection * view * this->model;
-			//program.setUniform("mvp", mvpAxis);
+			glm::mat4 mvpAxis = projection * view * this->axisModel;
+			program.setUniform("mvp", mvpAxis);
 			
 			// HIER BINDEN WIR DAS EIGENE VAO DER ACHSE
 			glBindVertexArray(axisVao);
@@ -284,15 +294,33 @@ public:
 };
 // ================================================================================= Ende MySPHERE =================================================================================
 //berechne den kreis auf dem bewegt wird
-void rotateVectorFromSphere(MySphere& middle, MySphere& toRotate) {
+void rotateVectorFromSphere(MySphere& middle, MySphere& toRotate, float orbitLength, float speed) {
     glm::vec3 vectorFromCenterToCenterOfTwoSpeheres = toRotate.center - middle.center;
-    vectorFromCenterToCenterOfTwoSpeheres = glm::rotate(vectorFromCenterToCenterOfTwoSpeheres, glm::radians(0.5f), glm::vec3(0.0f, 1.0f, 0.0f));
+    vectorFromCenterToCenterOfTwoSpeheres = glm::rotate(vectorFromCenterToCenterOfTwoSpeheres, glm::radians(speed), glm::vec3(0.0f, 1.0f, 0.0f));
+    vectorFromCenterToCenterOfTwoSpeheres = glm::normalize(vectorFromCenterToCenterOfTwoSpeheres) * orbitLength;
     glm::vec3 newCenter = middle.center + vectorFromCenterToCenterOfTwoSpeheres;
-    //glm::vec3 vectorOffsetModel = newCenter - toRotate.center;
     toRotate.setNewCoordinatesForCenter(newCenter[0], newCenter[1], newCenter[2]);
-    toRotate.model = glm::translate(toRotate.model, newCenter);
+    toRotate.translationModel = glm::translate(glm::mat4(1.0f), toRotate.center);
+    toRotate.rotationModel = glm::rotate(glm::mat4(1.0f), glm::radians(toRotate.degree), glm::vec3(1.0f, 0.0f, 0.0f));
+    toRotate.SphereModel = toRotate.translationModel * toRotate.rotationModel;
+    toRotate.axisModel = toRotate.translationModel* toRotate.axisRotationModel;
     
+   // toRotate.init(3, toRotate.r, newCenter[0], newCenter[1], newCenter[2], glm::vec3(1.0f, 0.0f, 0.0f), program.getHandle(), toRotate.degree, toRotate.has_axis);
 }
+
+void rotateVectorFromPlanet(MySphere& middle, MySphere& toRotate) {
+    glm::vec3 vectorFromCenterToCenterOfTwoSpeheres = toRotate.center - middle.center;
+    vectorFromCenterToCenterOfTwoSpeheres = glm::rotate(vectorFromCenterToCenterOfTwoSpeheres, glm::radians(0.3f), glm::vec3(0.0f, 1.0f, 0.0f));
+    glm::vec3 newCenter = middle.center + vectorFromCenterToCenterOfTwoSpeheres;
+    toRotate.setNewCoordinatesForCenter(newCenter[0], newCenter[1], newCenter[2]);
+    toRotate.translationModel = glm::translate(glm::mat4(1.0f), toRotate.center);
+    toRotate.rotationModel = glm::rotate(glm::mat4(1.0f), glm::radians(toRotate.degree), glm::vec3(1.0f, 0.0f, 0.0f));
+    toRotate.SphereModel = toRotate.translationModel * toRotate.rotationModel;
+    toRotate.axisModel = toRotate.translationModel * toRotate.axisRotationModel;
+
+    // toRotate.init(3, toRotate.r, newCenter[0], newCenter[1], newCenter[2], glm::vec3(1.0f, 0.0f, 0.0f), program.getHandle(), toRotate.degree, toRotate.has_axis);
+}
+
 
 MySphere sun;
 MySphere planet_right;
@@ -697,14 +725,6 @@ std::vector<GLushort> calcIndices(int n, std::vector<glm::vec3> subTriangles) {
 			weirdIndexCounter += countRow;
 		}
 	}
-    for (int i = 0; i < sphereIndicesWithSubdivision.size(); i += 3)
-    {
-        std::cout
-            << sphereIndicesWithSubdivision[i] << ", "
-            << sphereIndicesWithSubdivision[i + 1] << ", "
-            << sphereIndicesWithSubdivision[i + 2]
-            << std::endl;
-    }
 	return sphereIndicesWithSubdivision;
 }
 
@@ -939,7 +959,7 @@ bool init()
   
   moon_right.init(currentSubdivisions, 0.1f, 2.5f, 0.0f, 0.0f, glm::vec3(0.0f, 0.0f, 1.0f), programId, 0.0f, false);
  
-  moon_left.init(currentSubdivisions, 0.1f, -2.5f, 0.0f, 0.0f, glm::vec3(0.0f, 0.0f, 1.0f), programId, 0.0f, false);
+  moon_left.init(currentSubdivisions, 0.1f, -2.1f, 0.0f, 0.0f, glm::vec3(0.0f, 0.0f, 1.0f), programId, 0.0f, false);
 
   return true;
 }
@@ -957,9 +977,11 @@ void render()
 	// ==========================================
 	// 1. ANIMATION / UPDATE PHASE
 	// ==========================================
-    rotateVectorFromSphere(sun, planet_right);
-    rotateVectorFromSphere(sun, planet_left);
+    rotateVectorFromSphere(planet_left, moon_left, 0.5f, 10.0f);
 
+    rotateVectorFromSphere(sun, planet_right, 2.0f, 0.3f);
+    rotateVectorFromSphere(sun, planet_left, 2.0f, 0.3f);
+    
 	// ==========================================
 	// 2. ZEICHNEN PHASE
 	// ==========================================
