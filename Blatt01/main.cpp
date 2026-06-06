@@ -130,19 +130,21 @@ public:
     bool has_axis;
     float degree;
     float r;
+    float orbitAngle;
 
     glm::mat4 axisRotationModel; 
    
 	// Konstruktor
 	MySphere() : vao(0), positionBuffer(0), colorBuffer(0), indexBuffer(0), indexCount(0), n(3), model(glm::mat4(1.0f)) {}
 
-	void init(int subdivisions, float radius, float x, float y, float z, glm::vec3 color, GLuint programId, float initialDegree, bool has_axis = false) {
+	void init(int subdivisions, float radius, float x, float y, float z, glm::vec3 color, GLuint programId, float initialDegree, bool has_axis = false, float orbitAngle = 0.0f) {
 		this->n = subdivisions;
 		this->has_axis = has_axis;
         this->degree = initialDegree;
         this->r = radius;
         this->axisRotationModel =glm::rotate(glm::mat4(1.0f), glm::radians(initialDegree),glm::vec3(0.0f, 0.0f, 1.0f));
         center = glm::vec3(x, y, z);
+        this->orbitAngle = orbitAngle;
 
 		std::vector<glm::vec3> StartVertices = {
 			{ 0.0f,  radius,  0.0f}, // Oben
@@ -293,15 +295,42 @@ public:
 };
 // ================================================================================= Ende MySPHERE =================================================================================
 //berechne den kreis auf dem bewegt wird
+/*
+    Params:
+    - middle        (MySphere object which gets rotated around)
+    - toRotate      (MySphere object which gets rotated)
+    - orbitLengh    (distance between both objects)
+    - speed:        (rotation speed)
+*/
 void rotateVectorFromSphere(MySphere& middle, MySphere& toRotate, float orbitLength, float speed) {
-    glm::vec3 vectorFromCenterToCenterOfTwoSpeheres = toRotate.center - middle.center;
-    vectorFromCenterToCenterOfTwoSpeheres = glm::rotate(vectorFromCenterToCenterOfTwoSpeheres, glm::radians(speed), glm::vec3(0.0f, 1.0f, 0.0f));
-    vectorFromCenterToCenterOfTwoSpeheres = glm::normalize(vectorFromCenterToCenterOfTwoSpeheres) * orbitLength;
-    glm::vec3 newCenter = middle.center + vectorFromCenterToCenterOfTwoSpeheres;
-    toRotate.setNewCoordinatesForCenter(newCenter[0], newCenter[1], newCenter[2]);
-    toRotate.translationModel = glm::translate(glm::mat4(1.0f), toRotate.center);
-    toRotate.rotationModel = glm::rotate(glm::mat4(1.0f), glm::radians(toRotate.degree), glm::vec3(1.0f, 0.0f, 0.0f));
-    toRotate.SphereModel = toRotate.translationModel * toRotate.axisRotationModel;
+
+	// 1. Den absoluten Winkel des Mondes (auf seiner Umlaufbahn) aktualisieren
+	toRotate.orbitAngle += speed;
+	if (toRotate.orbitAngle >= 360.0f) {
+		toRotate.orbitAngle -= 360.0f;
+	}
+
+	// 2. Basis-Vektor erstellen (Abstand auf der X-Achse im lokalen Raum)
+	glm::vec3 baseVector(orbitLength, 0.0f, 0.0f);
+
+	// degree (axe) winkel holen um vector darum zu drehen
+	// 3. Auf der flachen Umlaufbahn rotieren (um die lokale Y-Achse)
+	glm::vec3 localOrbitVector = glm::rotate(baseVector, glm::radians(toRotate.orbitAngle), glm::vec3(0.0f, 1.0f, 0.0f));
+    
+	// 4. Die Achse des 'middle'-Objekts übernehmen
+	// multiplizieren den flachen Orbit-Vektor mit der Achsen-Rotationsmatrix des Planeten.
+	// Wichtig: Wir nutzen als 4. Komponente '0.0f', da es sich um einen Richtungsvektor und keinen Punkt handelt!
+	glm::vec3 worldOrbitVector = glm::vec3(middle.axisRotationModel * glm::vec4(localOrbitVector, 0.0f));
+
+	// 5. Den finalen, gekippten Vektor auf die aktuelle Welt-Position des Planeten addieren
+	glm::vec3 newCenter = middle.center + worldOrbitVector;
+
+	// 6. Position im Mond-Objekt speichern
+	toRotate.setNewCoordinatesForCenter(newCenter.x, newCenter.y, newCenter.z);
+
+	// 7. Matrizen aktualisieren
+	toRotate.translationModel = glm::translate(glm::mat4(1.0f), toRotate.center);
+	toRotate.SphereModel = toRotate.translationModel * toRotate.axisRotationModel;
 }
 
 
@@ -938,7 +967,7 @@ bool init()
 
   planet_right.init(currentSubdivisions, 0.3f, 2.0f, 0.0f, 0.0f, glm::vec3(1.0f, 0.0f, 0.0f), programId, 45.0f, true);
  
-  planet_left.init(currentSubdivisions, 0.3f, -2.0f, 0.0f, 0.0f, glm::vec3(1.0f, 0.0f, 0.0f), programId, 0.0f, true);
+  planet_left.init(currentSubdivisions, 0.3f, -2.0f, 0.0f, 0.0f, glm::vec3(1.0f, 0.0f, 0.0f), programId, 0.0f, true,180.0f);
   
   moon_right.init(currentSubdivisions, 0.1f, 2.5f, 0.0f, 0.0f, glm::vec3(0.0f, 0.0f, 1.0f), programId, 0.0f, false);
  
@@ -960,10 +989,12 @@ void render()
 	// ==========================================
 	// 1. ANIMATION / UPDATE PHASE
 	// ==========================================
-    rotateVectorFromSphere(planet_left, moon_left, 0.5f, 10.0f);
 
-    rotateVectorFromSphere(sun, planet_right, 2.0f, 0.3f);
-    rotateVectorFromSphere(sun, planet_left, 2.0f, 0.3f);
+    rotateVectorFromSphere(sun, planet_right, 2.0f, 0.001f);
+    rotateVectorFromSphere(sun, planet_left, 2.0f, 0.05f);
+
+    rotateVectorFromSphere(planet_left, moon_left, 0.5f, 0.1f);
+    rotateVectorFromSphere(planet_right, moon_right, 0.5f, 0.1f);
     
 	// ==========================================
 	// 2. ZEICHNEN PHASE
