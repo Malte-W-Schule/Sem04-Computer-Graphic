@@ -56,6 +56,10 @@ int indexCount = 0;
 int indexCountNormals = 0;
 float CZoom = 4.0f;
 
+bool planetRotate = true;
+float planetSpeed = 1.0f;
+float currentPlanetSpeed = 1.0f;
+
 class MySphere;
 
 // ================================================================================= Size =================================================================================
@@ -122,27 +126,29 @@ public:
 
     glm::vec3 center;
 	// Die Modellmatrix gehört zum Objekt
-	glm::mat4 model;
-    glm::mat4 translationModel;
-    glm::mat4 rotationModel;
-    glm::mat4 axisModel;
-    glm::mat4 SphereModel;
+
+    glm::mat4 translationModel; // wo ist planet position
+   
+    glm::mat4 AxisInclinedModel;    // wie ist achse gedreht
+    
+    glm::mat4 SphereRotationModel; // 
+
+    glm::mat4 SphereModel;      // alles zsm
+
     bool has_axis;
     float degree;
     float r;
     float orbitAngle;
-
-    glm::mat4 axisRotationModel; 
+    
    
 	// Konstruktor
-	MySphere() : vao(0), positionBuffer(0), colorBuffer(0), indexBuffer(0), indexCount(0), n(3), model(glm::mat4(1.0f)) {}
+	MySphere() : vao(0), positionBuffer(0), colorBuffer(0), indexBuffer(0), indexCount(0), n(3) {}
 
 	void init(int subdivisions, float radius, float x, float y, float z, glm::vec3 color, GLuint programId, float initialDegree, bool has_axis = false, float orbitAngle = 0.0f) {
 		this->n = subdivisions;
 		this->has_axis = has_axis;
         this->degree = initialDegree;
         this->r = radius;
-        this->axisRotationModel =glm::rotate(glm::mat4(1.0f), glm::radians(initialDegree),glm::vec3(0.0f, 0.0f, 1.0f));
         center = glm::vec3(x, y, z);
         this->orbitAngle = orbitAngle;
 
@@ -254,8 +260,8 @@ public:
         
 		// Modell-Matrix setzen (wird für Kugel und Achse gemeinsam genutzt)
 		this->translationModel = glm::translate(glm::mat4(1.0f), glm::vec3(x, y, z));
-        this->rotationModel = glm::rotate(glm::mat4(1.0f), glm::radians(initialDegree), glm::vec3(0.0f, 0.0f, 1.0f));
-        this->SphereModel = translationModel * rotationModel;
+        this->AxisInclinedModel = glm::rotate(glm::mat4(1.0f), glm::radians(initialDegree), glm::vec3(0.0f, 0.0f, 1.0f));
+        this->SphereModel = translationModel * AxisInclinedModel;
 	}
 
 	//setze die kugel + achse auf die neue koordinate
@@ -293,9 +299,9 @@ public:
 		glBindVertexArray(0);
 	}
 };
-// ================================================================================= Ende MySPHERE =================================================================================
-//berechne den kreis auf dem bewegt wird
 /*
+    //berechne den kreis auf dem bewegt wird
+
     Params:
     - middle        (MySphere object which gets rotated around)
     - toRotate      (MySphere object which gets rotated)
@@ -320,7 +326,7 @@ void rotateVectorFromSphere(MySphere& middle, MySphere& toRotate, float orbitLen
 	// 4. Die Achse des 'middle'-Objekts übernehmen
 	// multiplizieren den flachen Orbit-Vektor mit der Achsen-Rotationsmatrix des Planeten.
 	// Wichtig: Wir nutzen als 4. Komponente '0.0f', da es sich um einen Richtungsvektor und keinen Punkt handelt!
-	glm::vec3 worldOrbitVector = glm::vec3(middle.axisRotationModel * glm::vec4(localOrbitVector, 0.0f));
+	glm::vec3 worldOrbitVector = glm::vec3(middle.AxisInclinedModel * glm::vec4(localOrbitVector, 0.0f));
 
 	// 5. Den finalen, gekippten Vektor auf die aktuelle Welt-Position des Planeten addieren
 	glm::vec3 newCenter = middle.center + worldOrbitVector;
@@ -330,7 +336,7 @@ void rotateVectorFromSphere(MySphere& middle, MySphere& toRotate, float orbitLen
 
 	// 7. Matrizen aktualisieren
 	toRotate.translationModel = glm::translate(glm::mat4(1.0f), toRotate.center);
-	toRotate.SphereModel = toRotate.translationModel * toRotate.axisRotationModel;
+	toRotate.SphereModel = toRotate.translationModel * toRotate.SphereRotationModel * toRotate.AxisInclinedModel;
 }
 
 
@@ -339,6 +345,8 @@ MySphere planet_right;
 MySphere planet_left;
 MySphere moon_right;
 MySphere moon_left;
+
+// ================================================================================= Ende MySPHERE =================================================================================
 
 
 // ================================================================================= RENDER SPHERE =================================================================================
@@ -922,39 +930,7 @@ bool init()
     std::cerr << program.log();
     return false;
   }
-
-  /*
-  std::cout << "Gib drei Farbwerte ein (immer einen + enter):" << std::endl;
-  // Create all objects.
-  float a;
-  std::cin >> a;
-  float b;
-  std::cin >> b;
-  float c;
-  std::cin >> c;
-  glm::vec3 color(a, b, c);
   
-  std::cout << "1 RGB, 2 CMY, 3 HSV, as input" << std::endl;
-  int d;
-  std::cin >> d;
-  if (d == 1){
-      // rgb
-  }
-  else if (d == 2) {
-	  // cym
-      color = CMYtoRGB(color);
-  }
-  else if (d == 3) {
-	  // hsv
-      color = HSVtoRGB(color);
-  }
-  */
-
-
-  //std::vector<glm::vec3> colors = { color,color,color,color };
-  //initQuad(colors);
-  //initTriangle();
-
 
   // =======================================================================INit sphre auf crack:
   //MySphere mySphere; // Dein neues globales Kugel-Objekt
@@ -990,11 +966,16 @@ void render()
 	// 1. ANIMATION / UPDATE PHASE
 	// ==========================================
 
-    rotateVectorFromSphere(sun, planet_right, 2.0f, 0.001f);
-    rotateVectorFromSphere(sun, planet_left, 2.0f, 0.05f);
+    planet_left.AxisInclinedModel = glm::rotate(planet_left.AxisInclinedModel, glm::radians((planetSpeed * 0.1f)), glm::vec3(0.0f, 1.0f, 0.0f));
+    planet_right.AxisInclinedModel = glm::rotate(planet_right.AxisInclinedModel, glm::radians((planetSpeed * 0.1f)), glm::vec3(0.0f, 1.0f, 0.0f));
 
-    rotateVectorFromSphere(planet_left, moon_left, 0.5f, 0.1f);
-    rotateVectorFromSphere(planet_right, moon_right, 0.5f, 0.1f);
+    rotateVectorFromSphere(sun, planet_right, 2.0f,( planetSpeed* 0.01f));
+    rotateVectorFromSphere(sun, planet_left, 2.0f, (planetSpeed * 0.01f));
+
+    rotateVectorFromSphere(planet_left, moon_left, 0.5f, ( planetSpeed*0.2f));
+    rotateVectorFromSphere(planet_right, moon_right, 0.5f, (planetSpeed * 0.2f));
+
+    //planet_right.axisRotationModel = glm::rotate(planet_right.axisRotationModel, glm::radians(-0.05f), glm::vec3(0.0f, 1.0f, 0.0f));
     
 	// ==========================================
 	// 2. ZEICHNEN PHASE
@@ -1042,92 +1023,41 @@ void glutKeyboard (unsigned char keycode, int x, int y)
         glutDestroyWindow(glutID);
         return;
 
-   case '+':
-        //if (currentSubdivisions == 4) break;
-        //currentSubdivisions++;
-        // Init neu aufrufen, damit die Geometrie neu berechnet wird
-        //sun.init(currentSubdivisions, currentRadius, 0.0f, 0.0f, 0.0f, glm::vec3(1.0f, 1.0f, 0.0f), program.getHandle());
-    break;
-    case '-':
-        //if (n == 0) { break; }
-        //n -= 1;
-        //initSphere(); //Größe nicht verändern
 
-        break;
-    case 'x':
-        // Rotationsmatrix für X-Achse erzeugen und auf alle Objekte anwenden
-        sphere.model = glm::rotate(sphere.model, glm::radians(-5.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-        normales.model = glm::rotate(normales.model, glm::radians(-5.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-        koords.model = glm::rotate(koords.model, glm::radians(-5.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-        xRotation = (xRotation + 1) % 72; // bei 360 wieder auf 0
-        //initSphere();
-        break;
+	//langsamer
+	case 'd':
 
-    case 'y':
-        // Rotationsmatrix für Y-Achse erzeugen und auf alle Objekte anwenden
-        sphere.model = glm::rotate(sphere.model, glm::radians(-5.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        normales.model = glm::rotate(normales.model, glm::radians(-5.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        koords.model = glm::rotate(koords.model, glm::radians(-5.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        yRotation = (yRotation + 1) % 72; // bei 360 wieder auf 0
-        //initSphere();
-        break;
+		if(planetSpeed > 0 && planetRotate)
+		{
+			planetSpeed -= 0.1f; 
+		}
+		break;
 
-    case 'z':
-        // Rotationsmatrix für Z-Achse erzeugen und auf alle Objekte anwenden
-        sphere.model = glm::rotate(sphere.model, glm::radians(-5.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        normales.model = glm::rotate(normales.model, glm::radians(-5.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        koords.model = glm::rotate(koords.model, glm::radians(-5.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        zRotation = (zRotation + 1) % 72; // bei 360 wieder auf 0
-        //initSphere();
-        break;
+	//schneller
+	case 'f':
+		if (planetSpeed < 2 && planetRotate)
+		{
+			planetSpeed += 0.1f;
+		}
+		break;
+
+	//Stoppen und fortsetzen
+	case 'g':
+
+		if(planetRotate)
+		{
+			currentPlanetSpeed = planetSpeed;
+			planetSpeed = 0.0f;
+
+		}
+		else{
+			planetSpeed = currentPlanetSpeed;
+		}
+
+		planetRotate = !planetRotate;
+		
+		break;
     
-    //case 'r': // Kleiner machen (z.B. um den Faktor 0.9
-        //if (size > 0.1)
-        //{
-        //    //sphere.model = glm::scale(sphere.model, glm::vec3(0.9f));
-            //normales.model = glm::scale(normales.model, glm::vec3(0.9f));
-        //    size -= 0.1f;
-        //    initSphere();
-        //}
-
-        // koords.model weglassen, wenn das Achsenkreuz seine feste Größe behalten soll!
-        //break;
-
-    //case 'R': // Größer machen (z.B. um den Faktor 1.1)
-
-        // if (size < 2)
-        //{
-
-            //sphere.model = glm::scale(sphere.model, glm::vec3(1.1f));
-            //normales.model = glm::scale(normales.model, glm::vec3(1.1f));
-           // size += 0.1;
-          //  initSphere();
-      //  }
-	//    break;
-		//  case 'l':
-        // true false "switch" für normale
-	//    normalen = !normalen;
-		//     break;
-
-		// case 'a':
-        
-		//  CZoom += 0.1;
-		//   init();
-		//   break;
-
-		//  case 's':
-        
-       // CZoom -= 0.1f;
-		// init();
-	 //   break;
-
-		//case 'n':
-    // true false "switch" für normale
-       // xRotation = 0;
-	//	yRotation = 0;
-		//zRotation = 0;
-		//initSphere();
-	  //  break;
         
     glutPostRedisplay();
 
@@ -1188,7 +1118,7 @@ int main(int argc, char** argv){
   if (!result) {
     return -2;
   }
-
+  
   // GLUT: Loop until the user closes the window
   // rendering & event handling
   glutMainLoop ();
