@@ -64,6 +64,12 @@ bool isDepictionSolid = false;
 
 class MySphere;
 
+unsigned  lightIndex = 0;
+glm::vec4 lights[2] = {
+	glm::vec4(0.0f, 1.0f, 0.0f, 0.0f), // Richtungslicht
+	glm::vec4(0.0f, 0.0f, CZoom, 1.0f) // Punktlicht
+};
+
 // ================================================================================= Size =================================================================================
 
 /*
@@ -144,7 +150,7 @@ public:
     
    
 	// Konstruktor
-	MySphere() : vao(0), positionBuffer(0), colorBuffer(0), indexBuffer(0), indexCount(0), n(3) {}
+	MySphere() : vao(0), positionBuffer(0), colorBuffer(0), indexBuffer(0), indexCount(0), n(3) { }
 
 	void init(int subdivisions, float radius, float x, float y, float z, glm::vec3 color, GLuint programId, float initialDegree, bool has_axis = false, float orbitAngle = 0.0f) {
 		this->n = subdivisions;
@@ -280,10 +286,16 @@ public:
 
 		program.use();
 		program.setUniform("mvp", mvp);
+		program.setUniform("light", lights[lightIndex]);
 
 		// --- KUGEL ZEICHNEN ---
 		glBindVertexArray(vao);
-		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		if (isDepictionSolid) {
+			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		}
+		else {
+			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		}
 		glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_SHORT, 0);
 
 		// --- ACHSEN ZEICHNEN ---
@@ -293,14 +305,35 @@ public:
 			
 			// HIER BINDEN WIR DAS EIGENE VAO DER ACHSE
 			glBindVertexArray(axisVao);
+			
 			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+			
 			glDrawElements(GL_LINES, 2, GL_UNSIGNED_SHORT, 0);
 		}
 
 		// Clean-up
 		glBindVertexArray(0);
 	}
+
+	
 };
+void initShader(cg::GLSLProgram program, const char* vertPath, const char* fragPath)
+{
+	//initShader(program, "shader/simple.vert", "shader/simple.frag");
+	//initShader(program, "shader/shadedGouraud.vert", "shader/shadedGouraud.frag");
+	//initShader(program, "shader/shadedPhong.vert", "shader/shadedPhong.frag");
+
+	program.use();
+	program.setUniform("light", glm::vec3(0, 0, 0));
+	program.setUniform("lightI", float(1.0f));
+
+	program.setUniform("surfKa", glm::vec3(0.1f, 0.1f, 0.1f));
+	program.setUniform("surfKd", glm::vec3(0.7f, 0.1f, 0.1f));
+	program.setUniform("surfKs", glm::vec3(1, 1, 1));
+
+	program.setUniform("surfShininess", float(8.0f));
+}
+
 /*
     //berechne den kreis auf dem bewegt wird
 
@@ -387,7 +420,7 @@ void renderKoords() {
     glm::mat4x4 mvp = projection * view * koords.model;
 
     // Bind the shader program and set uniform(s).
-    program.use();
+    program.use(); 
     program.setUniform("mvp", mvp);
 
     // Bind vertex array object so we can render the 1 triangle.
@@ -487,108 +520,9 @@ std::vector<glm::vec3> calcSphereVertices(int n, std::vector<glm::vec3> sphereVe
 }
 
 
-
-// ================================================================================= INIT TRIANGLE =================================================================================
-void initTriangle()  
-{
-    glm::vec3 cmy(0.0f, 1.0f, 1.0f);
-
-  // Construct triangle. These vectors can go out of scope after we have send all data to the graphics card.
-  const std::vector<glm::vec3> vertices = { glm::vec3(-1.0f, 1.0f, 0.0f), glm::vec3(1.0f, -1.0f, 0.0f), glm::vec3(1.0f, 1.0f, 0.0f) };
-  const std::vector<glm::vec3> colors   = { glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f)}; // change float numbers between 0-1 to change color, Color Order is: Red/Green/Blue
-  const std::vector<GLushort>  indices  = { 0, 1, 2 };
-
-  GLuint programId = program.getHandle();
-  GLuint pos;
-
-  // Step 0: Create vertex array object.
-  glGenVertexArrays(1, &triangle.vao);
-  glBindVertexArray(triangle.vao);
-  
-  // Step 1: Create vertex buffer object for position attribute and bind it to the associated "shader attribute".
-  glGenBuffers(1, &triangle.positionBuffer);
-  glBindBuffer(GL_ARRAY_BUFFER, triangle.positionBuffer);
-  glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(glm::vec3), vertices.data(), GL_STATIC_DRAW);
-  
-  // Bind it to position.
-  pos = glGetAttribLocation(programId, "position");
-  glEnableVertexAttribArray(pos);
-  glVertexAttribPointer(pos, 3, GL_FLOAT, GL_FALSE, 0, 0);
-  
-  // Step 2: Create vertex buffer object for color attribute and bind it to...
-  glGenBuffers(1, &triangle.colorBuffer);
-  glBindBuffer(GL_ARRAY_BUFFER, triangle.colorBuffer);
-  glBufferData(GL_ARRAY_BUFFER, colors.size() * sizeof(glm::vec3), colors.data(), GL_STATIC_DRAW);
-  
-  // Bind it to color.
-  pos = glGetAttribLocation(programId, "color");
-  glEnableVertexAttribArray(pos);
-  glVertexAttribPointer(pos, 3, GL_FLOAT, GL_FALSE, 0, 0);
-  
-  // Step 3: Create vertex buffer object for indices. No binding needed here.
-  glGenBuffers(1, &triangle.indexBuffer);
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, triangle.indexBuffer);
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(GLushort), indices.data(), GL_STATIC_DRAW);
-  
-  // Unbind vertex array object (back to default).
-  glBindVertexArray(0);
-  
-  // Modify model matrix.
-  triangle.model = glm::translate(glm::mat4(1.0f), glm::vec3(-1.25f, 0.0f, 0.0f));
-}
-
-
-
-// ================================================================================= INIT QUAD =================================================================================
-void initQuad(std::vector<glm::vec3>& colors)
-{
-  // Construct triangle. These vectors can go out of scope after we have send all data to the graphics card.
-  const std::vector<glm::vec3> vertices = { { -1.0f, 1.0f, 0.0f }, { -1.0, -1.0, 0.0 }, { 1.0f, -1.0f, 0.0f }, { 1.0f, 1.0f, 0.0f } };
-  //const std::vector<glm::vec3> colors = { { 1.0f, 0.0f, 0.0f }, { 0.0f, 1.0, 1.0f }, { 0.0f, 1.0f, 0.0f }, { 0.0f, 0.0f, 1.0f } };
-  //const std::vector<glm::vec3> colors   = { { 1.0f, 0.0f, 0.0f }, CMYtoRGB(cmy), { 0.0f, 1.0f, 0.0f }, { 0.0f, 0.0f, 1.0f } };
-  const std::vector<GLushort>  indices  = { 0, 1, 2, 0, 2, 3 };
-
-  GLuint programId = program.getHandle();
-  GLuint pos;
-  
-  // Step 0: Create vertex array object.
-  glGenVertexArrays(1, &quad.vao);
-  glBindVertexArray(quad.vao);
-  
-  // Step 1: Create vertex buffer object for position attribute and bind it to the associated "shader attribute".
-  glGenBuffers(1, &quad.positionBuffer);
-  glBindBuffer(GL_ARRAY_BUFFER, quad.positionBuffer);
-  glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(glm::vec3), vertices.data(), GL_STATIC_DRAW);
-  
-  // Bind it to position.
-  pos = glGetAttribLocation(programId, "position");
-  glEnableVertexAttribArray(pos);
-  glVertexAttribPointer(pos, 3, GL_FLOAT, GL_FALSE, 0, 0);
-  
-  // Step 2: Create vertex buffer object for color attribute and bind it to...
-  glGenBuffers(1, &quad.colorBuffer);
-  glBindBuffer(GL_ARRAY_BUFFER, quad.colorBuffer);
-  glBufferData(GL_ARRAY_BUFFER, colors.size() * sizeof(glm::vec3), colors.data(), GL_STATIC_DRAW);
-  
-  // Bind it to color.
-  pos = glGetAttribLocation(programId, "color");
-  glEnableVertexAttribArray(pos);
-  glVertexAttribPointer(pos, 3, GL_FLOAT, GL_FALSE, 0, 0);
-  
-  // Step 3: Create vertex buffer object for indices. No binding needed here.
-  glGenBuffers(1, &quad.indexBuffer);
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, quad.indexBuffer);
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(GLushort), indices.data(), GL_STATIC_DRAW);
-  
-  // Unbind vertex array object (back to default).
-  glBindVertexArray(0);
-  
-  // Modify model matrix.
-  quad.model = glm::translate(glm::mat4(1.0f), glm::vec3(1.25f, 0.0f, 0.0f));
-}
-
-
 // ================================================================================= INIT =================================================================================
+
+
 /*
  Initialization. Should return true if everything is ok and false if something went wrong.
  */
@@ -624,6 +558,7 @@ bool init()
     return false;
   }
   
+ 
 
   // =======================================================================INit sphre auf crack:
   //MySphere mySphere; // Dein neues globales Kugel-Objekt
@@ -643,7 +578,11 @@ bool init()
   moon_left.init(currentSubdivisions, 0.1f, -2.1f, 0.0f, 0.0f, glm::vec3(0.0f, 0.0f, 1.0f), programId, 0.0f, false);
 
   return true;
+
+
 }
+
+
 
 bool start = true;
 
@@ -764,7 +703,8 @@ void glutKeyboard (unsigned char keycode, int x, int y)
 	case 's':
 		isDepictionSolid = !isDepictionSolid;
 		break;
-
+	case '1':
+		lightIndex = 1 - lightIndex; // wechsel 0 -> 1 -> 0...
     
         
     glutPostRedisplay();
