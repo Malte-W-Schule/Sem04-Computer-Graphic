@@ -14,6 +14,7 @@
 #include <glm/gtx/rotate_vector.hpp>
 
 
+
 // Standard window width
 const int WINDOW_WIDTH  = 640;
 // Standard window height
@@ -59,6 +60,7 @@ float CZoom = 4.0f;
 bool planetRotate = true;
 float planetSpeed = 1.0f;
 float currentPlanetSpeed = 1.0f;
+bool isDepictionSolid = false;
 
 class MySphere;
 
@@ -343,6 +345,7 @@ void rotateVectorFromSphere(MySphere& middle, MySphere& toRotate, float orbitLen
 MySphere sun;
 MySphere planet_right;
 MySphere planet_left;
+MySphere planet_tmp;
 MySphere moon_right;
 MySphere moon_left;
 
@@ -393,316 +396,6 @@ void renderKoords() {
     glDrawElements(GL_LINES, 6, GL_UNSIGNED_SHORT, 0);
     glBindVertexArray(0);
 }
-
-// ================================================================================= RENDER TRIANGLE =================================================================================
-void renderTriangle()
-{
-  // Create mvp.
-  glm::mat4x4 mvp = projection * view * triangle.model;
-  
-  // Bind the shader program and set uniform(s).
-  program.use();
-  program.setUniform("mvp", mvp);
-  
-  // Bind vertex array object so we can render the 1 triangle.
-  glBindVertexArray(triangle.vao);
-  glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_SHORT, 0);
-  glBindVertexArray(0);
-}
-
-void renderQuad()
-{
-  // Create mvp.
-  glm::mat4x4 mvp = projection * view * quad.model;
-  
-  // Bind the shader program and set uniform(s).
-  program.use();
-  program.setUniform("mvp", mvp);
-  
-  // Bind vertex array object so we can render the 2 triangles.
-  glBindVertexArray(quad.vao);
-  glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, 0);
-  glBindVertexArray(0);
-}
-
-
-
-// ================================================================================= INIT SPHERE =================================================================================
-/*void initSphere() {
-   
-   /* std::vector<glm::vec3> Skalierungsmatrix;
-
-   // Die 6 Eckpunkte
-    std::vector<glm::vec3> sphereVerticesold = { {
-        { 0.0f,  1.0f,  0.0f}, // 0: Oben
-        { 0.0f,  -1.0f,  0.0f}, // 1: Unten
-        { -1.0f,  0.0f,  1.0f}, // 2: VORNE
-        {1.0f,  0.0f,  -1.0f}, // 3: Hinten
-        { 1.0f,  0.0f,  1.0f}, // 4: Rechts
-        { -1.0f,  0.0f, -1.0f}  // 5: Links
-    } };
-
-
-    // === Startpunkt rotiert um 50°===
-
-    std::vector<glm::vec3> sphereVerticesWithoutSubdivision = {
-    {  0.0f,       1.0f,   0.0f },       // 0: Oben (bleibt gleich, da auf der Drehachse)
-    {  0.0f,      -1.0f,   0.0f },       // 1: Unten (bleibt gleich, da auf der Drehachse)
-    {  0.245576f, -0.f,   1.392728f },  // 2: VORNE
-    { -0.245576f,  0.1f,  -1.392728f },  // 3: Hinten
-    {  1.392728f, 0.0f,  -0.245576f },   // 4: Rechts
-    { -1.392728f,  0.0f,   0.245576f }   // 5: Links
-    };
-    
-    // 
-    sphereVerticesWithoutSubdivision = sphereVerticesold;
-
-    // 24 Indizes für die 8 Dreiecke 
-    std::vector<GLushort> sphereIndicesWithoutSubdivision = {
-        // Obere Hälfte
-        0, 4, 2,
-        0, 2, 5,
-        0, 5, 3,
-        0, 3, 4,
-
-        // Untere Hälfte
-        1, 2, 4,
-        1, 5, 2,
-        1, 3, 5,
-        1, 4, 3 };
-
-
-    std::vector<glm::vec3> sphereVertices;
-    std::vector<GLushort> sphereIndices;
-
-    sphereVertices = calcSphereVertices(sphereVerticesWithoutSubdivision, sphereIndicesWithoutSubdivision, glm::vec3(0.0f, 0.0f, 0.0f));
-    sphereIndices = calcIndices(sphereVertices);
-
-    if (n == 0) {
-        sphereVertices = sphereVerticesWithoutSubdivision;
-        sphereIndices = sphereIndicesWithoutSubdivision;
-    }
-
-    indexCount = sphereIndices.size();
-    indexCountNormals = sphereVertices.size() * 2;
-
-    for (glm::vec3& v : sphereVertices) v *= size;
-
-
-    std::vector<glm::vec3> colors;
-    // Für jeden generierten Punkt exakt einen Farbwert anlegen
-    for (size_t i = 0; i < sphereVertices.size(); i++) {
-        colors.push_back(glm::vec3(1.0f, 1.0f, 0.0f)); // Alles Gelb
-    }*/
-
-
-
-
-    //======================================================================================================================================================
-    /*
-    GLuint programId = program.getHandle();
-    GLuint pos;
-
-    // Step 0: Create vertex array object.
-    glGenVertexArrays(1, &sphere.vao);
-    glBindVertexArray(sphere.vao);
-
-    // Step 1: Create vertex buffer object for position attribute and bind it to the associated "shader attribute".
-    glGenBuffers(1, &sphere.positionBuffer);
-    glBindBuffer(GL_ARRAY_BUFFER, sphere.positionBuffer);
-    glBufferData(GL_ARRAY_BUFFER, sphereVertices.size() * sizeof(glm::vec3), sphereVertices.data(), GL_STATIC_DRAW);
-
-    // Bind it to position.
-    pos = glGetAttribLocation(programId, "position");
-    glEnableVertexAttribArray(pos);
-    glVertexAttribPointer(pos, 3, GL_FLOAT, GL_FALSE, 0, 0);
-
-    // Step 2: Create vertex buffer object for color attribute and bind it to...
-    glGenBuffers(1, &sphere.colorBuffer);
-    glBindBuffer(GL_ARRAY_BUFFER, sphere.colorBuffer);
-    glBufferData(GL_ARRAY_BUFFER, colors.size() * sizeof(glm::vec3), colors.data(), GL_STATIC_DRAW);
-
-    // Bind it to color.
-    pos = glGetAttribLocation(programId, "color");
-    glEnableVertexAttribArray(pos);
-    glVertexAttribPointer(pos, 3, GL_FLOAT, GL_FALSE, 0, 0);
-
-    // Step 3: Create vertex buffer object for indices. No binding needed here.
-    glGenBuffers(1, &sphere.indexBuffer);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, sphere.indexBuffer);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sphereIndices.size() * sizeof(GLushort), sphereIndices.data(), GL_STATIC_DRAW);
-
-    // Unbind vertex array object (back to default).
-    glBindVertexArray(0);
-
-    // Modify model matrix.Kugel liegt jetzt im Mittelpunkt
-    sphere.model = glm::mat4(1.0f);
-   
-
-    // ============================================================================== Koordinaten ==============================================================================
-
-   // X rot (um -5 Grad um Y gedreht)
-	//glm::vec3 minusXline(0.0f, 0.0f, 0.0f);
-	//glm::vec3 plusXline(1.0f, 0.0f, 0.0f);
-     
-	//Y blau (bleibt bei Y-Rotation völlig unverändert)
-	glm::vec3 minusYline(0.0f, -1.0f, 0.0f);
-	glm::vec3 plusYline(0.0f, 1.0f, 0.0f);
-
-	// Z lila/magenta (um -5 Grad um Y gedreht)
-	//glm::vec3 minusZline(0.0f, 0.0f, 0.0f);
-	//glm::vec3 plusZline(0.0f, 0.0f, 1.0f);
-
-    std::vector<glm::vec3> koordList;
-
-	//koordList.push_back(minusXline);//0
-	//koordList.push_back(plusXline);//1
-
-	koordList.push_back(minusYline);//2
-	koordList.push_back(plusYline);
-
-    //koordList.push_back(minusZline);
-    //koordList.push_back(plusZline);
-
-    std::vector<GLushort> koordIndiceList = { 0, 1, 2, 3, 4, 5 };
-
-
-    std::vector<glm::vec3> koordColors = {
-		glm::vec3(1.0f, 1.0f, 0.0f),
-		glm::vec3(1.0f, 1.0f, 0.0f),
-		glm::vec3(0.0f, 0.0f, 1.0f),
-		glm::vec3(0.0f, 0.0f, 1.0f),
-		glm::vec3(0.0f, 1.0f, 0.0f) ,
-        glm::vec3(0.0f, 1.0f, 0.0f)};
-
-
-
-    // Step 0: Create vertex array object.
-    glGenVertexArrays(1, &koords.vao);
-    glBindVertexArray(koords.vao);
-
-    // Step 1: Create vertex buffer object for position attribute and bind it to the associated "shader attribute".
-    glGenBuffers(1, &koords.positionBuffer);
-    glBindBuffer(GL_ARRAY_BUFFER, koords.positionBuffer);
-    glBufferData(GL_ARRAY_BUFFER, koordList.size() * sizeof(glm::vec3), koordList.data(), GL_STATIC_DRAW);
-
-    // Bind it to position.
-    pos = glGetAttribLocation(programId, "position");
-    glEnableVertexAttribArray(pos);
-    glVertexAttribPointer(pos, 3, GL_FLOAT, GL_FALSE, 0, 0);
-
-    // Step 2: Create vertex buffer object for color attribute and bind it to...
-    glGenBuffers(1, &koords.colorBuffer);
-    glBindBuffer(GL_ARRAY_BUFFER, koords.colorBuffer);
-    glBufferData(GL_ARRAY_BUFFER, koordColors.size() * sizeof(glm::vec3), koordColors.data(), GL_STATIC_DRAW);
-
-    // Bind it to color.
-    pos = glGetAttribLocation(programId, "color");
-    glEnableVertexAttribArray(pos);
-    glVertexAttribPointer(pos, 3, GL_FLOAT, GL_FALSE, 0, 0);
-
-    // Step 3: Create vertex buffer object for indices. No binding needed here.
-    glGenBuffers(1, &koords.indexBuffer);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, koords.indexBuffer);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, koordIndiceList.size() * sizeof(GLushort), koordIndiceList.data(), GL_STATIC_DRAW);
-
-    // Unbind vertex array object (back to default).
-    glBindVertexArray(0);
-
-    // Modify model matrix.Kugel liegt jetzt im Mittelpunkt
-	koords.model = glm::mat4(1.0f);
-    
-        
-    // ============================================================================== normalen ==============================================================================
-    
-	std::vector<glm::vec3> normalenListe;
-	std::vector<GLushort> normalenIndicesListe;
-        for (auto& a : sphereVertices)
-        {
-        //center
-
-            glm::vec3 center(0.0f, 0.0f, 0.0f);
-            // richtungsvektor berechnen
-            glm::vec3 normalePunkt = a + (a - center);
-
-            // linie malen von a zu normalePunkt
-            int lenght = normalenIndicesListe.size(); // bei leer = 0, bei 1 = 1 
-
-
-            normalenListe.push_back(a);
-            normalenListe.push_back(normalePunkt);
-            // indizes hinzufügen
-            normalenIndicesListe.push_back(lenght);
-            normalenIndicesListe.push_back(lenght + 1);
-        }
-
-    std::vector<glm::vec3> colorsNormales;
-    // Für jeden generierten Punkt exakt einen Farbwert anlegen
-    for (size_t i = 0; i < normalenListe.size(); i++) {
-        colorsNormales.push_back(glm::vec3(0.0f, 1.0f, 0.0f)); // Alles grün
-    }
-
-    // noralenliste und normalenindicesliste drawn.
-    // Step 0: Create vertex array object.
-    glGenVertexArrays(1, &normales.vao);
-    glBindVertexArray(normales.vao);
-
-    // Step 1: Create vertex buffer object for position attribute and bind it to the associated "shader attribute".
-    glGenBuffers(1, &normales.positionBuffer);
-    glBindBuffer(GL_ARRAY_BUFFER, normales.positionBuffer);
-    glBufferData(GL_ARRAY_BUFFER, normalenListe.size() * sizeof(glm::vec3), normalenListe.data(), GL_STATIC_DRAW);
-
-    // Bind it to position.
-    pos = glGetAttribLocation(programId, "position");
-    glEnableVertexAttribArray(pos);
-    glVertexAttribPointer(pos, 3, GL_FLOAT, GL_FALSE, 0, 0);
-
-    // Step 2: Create vertex buffer object for color attribute and bind it to...
-    glGenBuffers(1, &normales.colorBuffer);
-    glBindBuffer(GL_ARRAY_BUFFER, normales.colorBuffer);
-    glBufferData(GL_ARRAY_BUFFER, colorsNormales.size() * sizeof(glm::vec3), colorsNormales.data(), GL_STATIC_DRAW);
-
-    // Bind it to color.
-    pos = glGetAttribLocation(programId, "color");
-    glEnableVertexAttribArray(pos);
-    glVertexAttribPointer(pos, 3, GL_FLOAT, GL_FALSE, 0, 0);
-
-    // Step 3: Create vertex buffer object for indices. No binding needed here.
-    glGenBuffers(1, &normales.indexBuffer);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, normales.indexBuffer);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, normalenIndicesListe.size() * sizeof(GLushort), normalenIndicesListe.data(), GL_STATIC_DRAW);
-
-    // Unbind vertex array object (back to default).
-    glBindVertexArray(0);
-
-    normales.model = glm::mat4(1.0f);
-
-    // ==================================================================== ROtation faken ===================================================================================
-	
-	for (int y = 0; y < yRotation; y++) {
-
-		// Rotationsmatrix für X-Achse erzeugen und auf alle Objekte anwenden
-		sphere.model = glm::rotate(sphere.model, glm::radians(-5.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-		normales.model = glm::rotate(normales.model, glm::radians(-5.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-		koords.model = glm::rotate(koords.model, glm::radians(-5.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-	}
-	for (int z = 0; z < zRotation; z++) {
-
-		// Rotationsmatrix für X-Achse erzeugen und auf alle Objekte anwenden
-		sphere.model = glm::rotate(sphere.model, glm::radians(-5.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-		normales.model = glm::rotate(normales.model, glm::radians(-5.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-		koords.model = glm::rotate(koords.model, glm::radians(-5.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-	}
-	for (int x = 0; x < xRotation; x++) {
-
-		// Rotationsmatrix für X-Achse erzeugen und auf alle Objekte anwenden
-		sphere.model = glm::rotate(sphere.model, glm::radians(-5.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-		normales.model = glm::rotate(normales.model, glm::radians(-5.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-		koords.model = glm::rotate(koords.model, glm::radians(-5.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-	}
-    
-}*/
-
 
 
 
@@ -961,19 +654,29 @@ bool start = true;
 void render()
 {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	// ==========================================
+	// 1. Framerate / Geschwindigkeit berechnen
+	// ==========================================
+	static int lastTime = glutGet(GLUT_ELAPSED_TIME);
+
+	int currentTime = glutGet(GLUT_ELAPSED_TIME);
+
+	float deltaTime = (currentTime - lastTime) / 1000.0f;
+
+	lastTime = currentTime;
 
 	// ==========================================
 	// 1. ANIMATION / UPDATE PHASE
 	// ==========================================
 
-    planet_left.AxisInclinedModel = glm::rotate(planet_left.AxisInclinedModel, glm::radians((planetSpeed * 0.1f)), glm::vec3(0.0f, 1.0f, 0.0f));
-    planet_right.AxisInclinedModel = glm::rotate(planet_right.AxisInclinedModel, glm::radians((planetSpeed * 0.1f)), glm::vec3(0.0f, 1.0f, 0.0f));
+    planet_left.AxisInclinedModel = glm::rotate(planet_left.AxisInclinedModel, glm::radians((deltaTime * planetSpeed * 60.0f)), glm::vec3(0.0f, 1.0f, 0.0f));
+    planet_right.AxisInclinedModel = glm::rotate(planet_right.AxisInclinedModel, glm::radians((deltaTime * planetSpeed * 60.0f)), glm::vec3(0.0f, 1.0f, 0.0f));
 
-    rotateVectorFromSphere(sun, planet_right, 2.0f,( planetSpeed* 0.01f));
-    rotateVectorFromSphere(sun, planet_left, 2.0f, (planetSpeed * 0.01f));
+    rotateVectorFromSphere(sun, planet_right, 2.0f, (deltaTime * planetSpeed * 10.0f));
+    rotateVectorFromSphere(sun, planet_left, 2.0f, (deltaTime * planetSpeed * 10.0f));
 
-    rotateVectorFromSphere(planet_left, moon_left, 0.5f, ( planetSpeed*0.2f));
-    rotateVectorFromSphere(planet_right, moon_right, 0.5f, (planetSpeed * 0.2f));
+    rotateVectorFromSphere(planet_left, moon_left, 0.5f, -2*(deltaTime * planetSpeed * 60.0f));
+    rotateVectorFromSphere(planet_right, moon_right, 0.5f, (deltaTime * planetSpeed * 60.0f));
 
     //planet_right.axisRotationModel = glm::rotate(planet_right.axisRotationModel, glm::radians(-0.05f), glm::vec3(0.0f, 1.0f, 0.0f));
     
@@ -1057,6 +760,11 @@ void glutKeyboard (unsigned char keycode, int x, int y)
 		planetRotate = !planetRotate;
 		
 		break;
+
+	case 's':
+		isDepictionSolid = !isDepictionSolid;
+		break;
+
     
         
     glutPostRedisplay();
