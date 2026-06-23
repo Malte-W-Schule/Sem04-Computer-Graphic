@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 ﻿  GLSLProgram.cpp
   main.cpp
   Code wird generiert...
@@ -40,4 +41,8 @@ freeglut_staticd.lib(fg_ext_mswin.obj) : warning LNK4099: PDB "freeglut_static.p
 freeglut_staticd.lib(fg_font_data.obj) : warning LNK4099: PDB "freeglut_static.pdb" wurde nicht mit "freeglut_staticd.lib(fg_font_data.obj)" oder an "C:\Users\Sarah Kirchhof\Desktop\WICHTIGE_HSBI_SACHEN\viertes_semester\Grafik\Sem04-Computer-Graphic\Blatt01\x64\Debug\freeglut_static.pdb" gefunden; Objekt wird verknüpft, als ob keine Debuginformationen vorhanden wären.
 freeglut_staticd.lib(fg_stroke_roman.obj) : warning LNK4099: PDB "freeglut_static.pdb" wurde nicht mit "freeglut_staticd.lib(fg_stroke_roman.obj)" oder an "C:\Users\Sarah Kirchhof\Desktop\WICHTIGE_HSBI_SACHEN\viertes_semester\Grafik\Sem04-Computer-Graphic\Blatt01\x64\Debug\freeglut_static.pdb" gefunden; Objekt wird verknüpft, als ob keine Debuginformationen vorhanden wären.
 freeglut_staticd.lib(fg_stroke_mono_roman.obj) : warning LNK4099: PDB "freeglut_static.pdb" wurde nicht mit "freeglut_staticd.lib(fg_stroke_mono_roman.obj)" oder an "C:\Users\Sarah Kirchhof\Desktop\WICHTIGE_HSBI_SACHEN\viertes_semester\Grafik\Sem04-Computer-Graphic\Blatt01\x64\Debug\freeglut_static.pdb" gefunden; Objekt wird verknüpft, als ob keine Debuginformationen vorhanden wären.
+=======
+﻿  main.cpp
+C:\Users\Sarah Kirchhof\Desktop\WICHTIGE_HSBI_SACHEN\viertes_semester\Grafik\Sem04-Computer-Graphic\Blatt01\main.cpp(217,41): warning C4267: "=": Konvertierung von "size_t" nach "int", Datenverlust möglich
+>>>>>>> Stashed changes
   Blatt01.vcxproj -> C:\Users\Sarah Kirchhof\Desktop\WICHTIGE_HSBI_SACHEN\viertes_semester\Grafik\Sem04-Computer-Graphic\Blatt01\x64\Debug\Blatt01.exe
