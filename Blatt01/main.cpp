@@ -14,6 +14,28 @@
 #include <glm/gtx/rotate_vector.hpp>
 
 
+struct GeometryConfig {
+	int subdivisions = 36;
+	float radius = 1.0f;
+};
+
+struct TransformConfig {
+	glm::vec3 position = glm::vec3(0.0f); 
+	float initialDegree = 0.0f;
+	float orbitAngle = 0.0f;
+};
+
+struct MaterialConfig {
+	glm::vec3 color = glm::vec3(1.0f);
+	glm::vec3 surfKa = glm::vec3(0.1f); // Ambient
+	glm::vec3 surfKd = glm::vec3(0.6f); // Diffuse
+	glm::vec3 surfKs = glm::vec3(0.3f); // Specular
+};
+
+struct RenderConfig {
+	bool has_axis = false;
+};
+
 
 // Standard window width
 const int WINDOW_WIDTH  = 640;
@@ -35,7 +57,6 @@ void readInLoop();
 float min(glm::vec3 input);
 float max(glm::vec3 input);
 
-cg::GLSLProgram program;
 	
 glm::mat4x4 view;
 glm::mat4x4 projection;
@@ -114,15 +135,26 @@ Object koords;
 
 // ================================================================================= SPHERE Klasse =================================================================================
 
-void initShader(cg::GLSLProgram&	program, const char* vertPath, const char* fragPath)
+/*
+- surfKA = Ambient 
+	- Die ambiente Reflexion (Umgebungslicht).
+
+- surfKd = Diffuse 
+	- Die diffuse Reflexion (Körperfarbe).
+
+- surfKs = Specular
+	- Die spekulare Reflexion (Glanzlicht / Spiegelung).
+*/
+void initShader(cg::GLSLProgram& program,glm::vec3 surfKa, glm::vec3 surfKd, glm::vec3 surfKs)
 {
 	program.use();
 	program.setUniform("light", glm::vec3(0, 0, 0));
 	program.setUniform("lightI", float(1.0f));
 
-	program.setUniform("surfKa", glm::vec3(0.1f, 0.1f, 0.1f));
-	program.setUniform("surfKd", glm::vec3(0.7f, 0.1f, 0.1f));
-	program.setUniform("surfKs", glm::vec3(1, 1, 1));
+	// die farbe
+	program.setUniform("surfKa", surfKa);
+	program.setUniform("surfKd", surfKd);
+	program.setUniform("surfKs", surfKs);
 
 	program.setUniform("surfShininess", float(8.0f));
 }
@@ -148,234 +180,241 @@ private:
 
 public:
 
-    glm::vec3 center;
+	glm::vec3 center;
 	// Die Modellmatrix gehört zum Objekt
 
-    glm::mat4 translationModel; // wo ist planet position
-   
-    glm::mat4 AxisInclinedModel;    // wie ist achse gedreht
-    
-    glm::mat4 SphereRotationModel; // 
+	glm::mat4 translationModel; // wo ist planet position
 
-    glm::mat4 SphereModel;      // alles zsm
+	glm::mat4 AxisInclinedModel;    // wie ist achse gedreht
 
-    bool has_axis;
-    float degree;
-    float r;
-    float orbitAngle;
-    
-   
+	glm::mat4 SphereRotationModel; // 
+
+	glm::mat4 SphereModel;      // alles zsm
+
+	bool has_axis;
+	float degree;
+	float r;
+	float orbitAngle;
+	glm::vec3 surfKa;
+	glm::vec3 surfKd;
+	glm::vec3 surfKs;
+
+	cg::GLSLProgram program;
+
 	// Konstruktor
-	MySphere() : vao(0), positionBuffer(0), colorBuffer(0), indexBuffer(0), normalBuffer(0),indexCount(0), n(3) { } //////////////////////////////////////////////////////////////////////////////////////////////
+	MySphere() : vao(0), positionBuffer(0), colorBuffer(0), indexBuffer(0), normalBuffer(0), indexCount(0), n(3) {}
 
-	//////////////////////////////////////////////////////////////////////////////////////////////
-	void init(int subdivisions, float radius, float x, float y, float z, glm::vec3 color, GLuint programId, float initialDegree, bool has_axis = false, float orbitAngle = 0.0f) {
-		this->n = subdivisions;
-		this->has_axis = has_axis;
-        this->degree = initialDegree;
-        this->r = radius;
-        center = glm::vec3(x, y, z);
-        this->orbitAngle = orbitAngle;
-
-		std::vector<glm::vec3> StartVertices = {
-			{ 0.0f,  radius,  0.0f}, // Oben
-			{ 0.0f, -radius,  0.0f}, // Unten
-			{ radius,  0.0f,  0.0f}, // Rechts
-			{-radius,  0.0f,  0.0f}, // Links
-			{ 0.0f,  0.0f,  radius}, // Vorne
-			{ 0.0f,  0.0f, -radius}  // Hinten
-		};
-
-		std::vector<GLushort> StartIndices = {
-			// untere hälfte
-			0, 4, 2,  0, 2, 5,  0, 5, 3,  0, 3, 4,
-			// Obere hälfte
-			1, 2, 4,  1, 5, 2,  1, 3, 5,  1, 4, 3
-		};
-
-		glm::vec3 center(0.0f, 0.0f, 0.0f);
-		std::vector<glm::vec3> currentVertices = calcSphereVertices(this->n, StartVertices, StartIndices, center);
-		std::vector<GLushort> currentIndices = calcIndices(this->n, currentVertices);
-
-		this->indexCount = currentIndices.size();
-
-		for (glm::vec3& v : currentVertices) v *= radius;
-		std::vector<glm::vec3> colors(currentVertices.size(), color);
+//	============================== INIT ==============================	
+	bool init(const GeometryConfig& geom,
+		const TransformConfig& transform,
+		const MaterialConfig& material,
+		const RenderConfig& render) {
 
 
-		// ==========================================
-		// 1. KUGEL INITIALISIEREN
-		// ==========================================
+	this->surfKa = material.surfKa;
+	this->surfKd = material.surfKd;
+	this->surfKs = material.surfKs;
+	this->n = geom.subdivisions;
+	this->r = geom.radius;
 
-																																/*======================== Normalen ==========================*/
-		std::vector<glm::vec3> normalenListe;
-		std::vector<GLushort> normalenIndicesListe;
+	this->center = transform.position;
 
-		for (auto& a : currentVertices)
-		{
-			//glm::vec3 normalePunkt = a + (a - center);
-			glm::vec3 normalePunkt = glm::normalize(a);
+	this->degree = transform.initialDegree;
+	this->orbitAngle = transform.orbitAngle;
 
-			normalenListe.push_back(normalePunkt);
-		}
+	this->has_axis = render.has_axis;
 
-		std::vector<glm::vec3> colorsNormales;
-		// Für jeden generierten Punkt exakt einen Farbwert anlegen
-		for (size_t i = 0; i < normalenListe.size(); i++) {
-			colorsNormales.push_back(glm::vec3(0.0f, 1.0f, 0.0f)); // Alles grün
-		}
+
+	glm::vec3 color = material.color;
+
+	float radius = geom.radius;
 
 
 
-																																	// shader shit
-			// ==========================================
-			//  SHADER ZEUG! Kugel
-			// ==========================================
+	std::vector<glm::vec3> StartVertices = {
+		{ 0.0f,  radius,  0.0f}, // Oben
+		{ 0.0f, -radius,  0.0f}, // Unten
+		{ radius,  0.0f,  0.0f}, // Rechts
+		{-radius,  0.0f,  0.0f}, // Links
+		{ 0.0f,  0.0f,  radius}, // Vorne
+		{ 0.0f,  0.0f, -radius}  // Hinten
+	};
 
-		if (vao != 0) {
-			glDeleteVertexArrays(1, &vao);
-			glDeleteBuffers(1, &positionBuffer);
-			glDeleteBuffers(1, &colorBuffer);
-			glDeleteBuffers(1, &indexBuffer);
-		}
+	std::vector<GLushort> StartIndices = {
+		// untere hälfte
+		0, 4, 2,  0, 2, 5,  0, 5, 3,  0, 3, 4,
+		// Obere hälfte
+		1, 2, 4,  1, 5, 2,  1, 3, 5,  1, 4, 3
+	};
+
+	glm::vec3 center(0.0f, 0.0f, 0.0f);
+	std::vector<glm::vec3> currentVertices = calcSphereVertices(this->n, StartVertices, StartIndices, center);
+	std::vector<GLushort> currentIndices = calcIndices(this->n, currentVertices);
+
+	this->indexCount = currentIndices.size();
+
+	for (glm::vec3& v : currentVertices) v *= radius;
+	std::vector<glm::vec3> colors(currentVertices.size(), color);
+
 		
-		initShader(program, "shader/shadedPhong.vert", "shader/shadedPhong.frag");
 
-		glGenVertexArrays(1, &vao);
-		glBindVertexArray(vao);
 
-		// === Position ===
 
-		glGenBuffers(1, &positionBuffer);
-		glBindBuffer(GL_ARRAY_BUFFER, positionBuffer);
-		glBufferData(GL_ARRAY_BUFFER, currentVertices.size() * sizeof(glm::vec3), currentVertices.data(), GL_STATIC_DRAW);
-		GLuint pos = glGetAttribLocation(programId, "position");
+		// Create a shader program and set light direction.
+		if (!program.compileShaderFromFile("shader/shadedPhong.vert", cg::GLSLShader::VERTEX)) {
+			std::cerr << program.log();
+			//	return false;
+		}
+
+		if (!program.compileShaderFromFile("shader/shadedPhong.frag", cg::GLSLShader::FRAGMENT)) {
+			std::cerr << program.log();
+			//	return false;
+		}
+
+		if (!program.link()) {
+			std::cerr << program.log();
+			//	return false;
+		}
+
+		GLuint programId = program.getHandle();
+
+	// ==========================================
+	// 1. KUGEL INITIALISIEREN
+	// ==========================================
+
+																															/*======================== Normalen ==========================*/
+	std::vector<glm::vec3> normalenListe;
+	std::vector<GLushort> normalenIndicesListe;
+
+	for (auto& a : currentVertices)
+	{
+		//glm::vec3 normalePunkt = a + (a - center);
+		glm::vec3 normalePunkt = glm::normalize(a);
+
+		normalenListe.push_back(normalePunkt);
+	}
+
+	std::vector<glm::vec3> colorsNormales;
+	// Für jeden generierten Punkt exakt einen Farbwert anlegen
+	for (size_t i = 0; i < normalenListe.size(); i++) {
+		colorsNormales.push_back(glm::vec3(0.0f, 1.0f, 0.0f)); // Alles grün
+	}
+
+	// ==========================================
+	//  SHADER ZEUG! Kugel
+	// ==========================================
+
+	if (vao != 0) {
+		glDeleteVertexArrays(1, &vao);
+		glDeleteBuffers(1, &positionBuffer);
+		glDeleteBuffers(1, &colorBuffer);
+		glDeleteBuffers(1, &indexBuffer);
+	}
+
+	initShader(program, surfKa, surfKd, surfKs);
+
+	glGenVertexArrays(1, &vao);
+	glBindVertexArray(vao);
+
+	// === Position ===
+
+	glGenBuffers(1, &positionBuffer);
+	glBindBuffer(GL_ARRAY_BUFFER, positionBuffer);
+	glBufferData(GL_ARRAY_BUFFER, currentVertices.size() * sizeof(glm::vec3), currentVertices.data(), GL_STATIC_DRAW);
+	GLuint pos = glGetAttribLocation(programId, "position");
+	glEnableVertexAttribArray(pos);
+	glVertexAttribPointer(pos, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+	// === Color ===
+
+	glGenBuffers(1, &colorBuffer);
+	glBindBuffer(GL_ARRAY_BUFFER, colorBuffer);
+	glBufferData(GL_ARRAY_BUFFER, colors.size() * sizeof(glm::vec3), colors.data(), GL_STATIC_DRAW);
+	GLuint col = glGetAttribLocation(programId, "color");
+	glEnableVertexAttribArray(col);
+	glVertexAttribPointer(col, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+	// === Normalen ===
+
+	glGenBuffers(1, &normalBuffer);
+	glBindBuffer(GL_ARRAY_BUFFER, normalBuffer);
+	glBufferData(GL_ARRAY_BUFFER, normalenListe.size() * sizeof(glm::vec3), normalenListe.data(), GL_STATIC_DRAW);
+	GLuint nor = glGetAttribLocation(programId, "normal");
+	glEnableVertexAttribArray(nor);
+	glVertexAttribPointer(nor, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+	glGenBuffers(1, &indexBuffer);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, currentIndices.size() * sizeof(GLushort), currentIndices.data(), GL_STATIC_DRAW);
+
+	glBindVertexArray(0);
+
+
+
+
+
+	// ==========================================
+	// 2. ACHSEN INITIALISIEREN (EIGENE PUFFER!)
+	// ==========================================
+	if (has_axis) {
+		std::vector<glm::vec3> axesVertices;
+		std::vector<GLushort> axesIndices = { 0, 1 };
+
+		// Y-Achse (oben und unten)
+		glm::vec3 posAxes = (StartVertices[0] - center) * 2.0f + center;
+		glm::vec3 negAxes = (StartVertices[1] - center) * 2.0f + center;
+
+		axesVertices.push_back(posAxes);
+		axesVertices.push_back(negAxes);
+
+		std::vector<glm::vec3> colorAxes = { glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f) };
+
+
+		// ==========================================
+		// 3. SHADER ZEUG! Achsen
+		// ==========================================
+
+		if (axisVao != 0) {
+			glDeleteVertexArrays(1, &axisVao);
+			glDeleteBuffers(1, &axisPositionBuffer);
+			glDeleteBuffers(1, &axisColorBuffer);
+			glDeleteBuffers(1, &axisIndexBuffer);
+
+		}
+
+
+		glGenVertexArrays(1, &axisVao);
+		glBindVertexArray(axisVao);
+
+		glGenBuffers(1, &axisPositionBuffer);
+		glBindBuffer(GL_ARRAY_BUFFER, axisPositionBuffer);
+		glBufferData(GL_ARRAY_BUFFER, axesVertices.size() * sizeof(glm::vec3), axesVertices.data(), GL_STATIC_DRAW);
 		glEnableVertexAttribArray(pos);
 		glVertexAttribPointer(pos, 3, GL_FLOAT, GL_FALSE, 0, 0);
 
-		// === Color ===
-
-		glGenBuffers(1, &colorBuffer);
-		glBindBuffer(GL_ARRAY_BUFFER, colorBuffer);
-		glBufferData(GL_ARRAY_BUFFER, colors.size() * sizeof(glm::vec3), colors.data(), GL_STATIC_DRAW);
-		GLuint col = glGetAttribLocation(programId, "color");
+		glGenBuffers(1, &axisColorBuffer);
+		glBindBuffer(GL_ARRAY_BUFFER, axisColorBuffer);
+		glBufferData(GL_ARRAY_BUFFER, colorAxes.size() * sizeof(glm::vec3), colorAxes.data(), GL_STATIC_DRAW);
 		glEnableVertexAttribArray(col);
 		glVertexAttribPointer(col, 3, GL_FLOAT, GL_FALSE, 0, 0);
 
-		// === Normalen ===
-
-		glGenBuffers(1, &normalBuffer);
-		glBindBuffer(GL_ARRAY_BUFFER, normalBuffer);
-		glBufferData(GL_ARRAY_BUFFER, normalenListe.size() * sizeof(glm::vec3), normalenListe.data(), GL_STATIC_DRAW);
-		GLuint nor = glGetAttribLocation(programId, "normal");
-		glEnableVertexAttribArray(nor);
-		glVertexAttribPointer(nor, 3, GL_FLOAT, GL_FALSE, 0, 0);
-
-		glGenBuffers(1, &indexBuffer);
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer);
-		glBufferData(GL_ELEMENT_ARRAY_BUFFER, currentIndices.size() * sizeof(GLushort), currentIndices.data(), GL_STATIC_DRAW);
+		glGenBuffers(1, &axisIndexBuffer);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, axisIndexBuffer);
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER, axesIndices.size() * sizeof(GLushort), axesIndices.data(), GL_STATIC_DRAW);
 
 		glBindVertexArray(0);
-		
 
-
-
-
-		// ==========================================
-		// 2. ACHSEN INITIALISIEREN (EIGENE PUFFER!)
-		// ==========================================
-		if (has_axis) {
-			std::vector<glm::vec3> axesVertices;
-			std::vector<GLushort> axesIndices = { 0, 1 };
-
-			// Y-Achse (oben und unten)
-			glm::vec3 posAxes = (StartVertices[0] - center) * 2.0f + center;
-			glm::vec3 negAxes = (StartVertices[1] - center) * 2.0f + center;
-
-			axesVertices.push_back(posAxes);
-			axesVertices.push_back(negAxes);
-
-			std::vector<glm::vec3> colorAxes = { glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f) };
 
 			
-			
-			
-			// ==========================================
-			// 3. SHADER ZEUG! Achsen
-			// ==========================================
-			
-			if (axisVao != 0) {
-				glDeleteVertexArrays(1, &axisVao);
-				glDeleteBuffers(1, &axisPositionBuffer);
-				glDeleteBuffers(1, &axisColorBuffer);
-				glDeleteBuffers(1, &axisIndexBuffer);
-
-			}
-
-
-			glGenVertexArrays(1, &axisVao);
-			glBindVertexArray(axisVao);
-
-			glGenBuffers(1, &axisPositionBuffer);
-			glBindBuffer(GL_ARRAY_BUFFER, axisPositionBuffer);
-			glBufferData(GL_ARRAY_BUFFER, axesVertices.size() * sizeof(glm::vec3), axesVertices.data(), GL_STATIC_DRAW);
-			glEnableVertexAttribArray(pos);
-			glVertexAttribPointer(pos, 3, GL_FLOAT, GL_FALSE, 0, 0);
-
-			glGenBuffers(1, &axisColorBuffer);
-			glBindBuffer(GL_ARRAY_BUFFER, axisColorBuffer);
-			glBufferData(GL_ARRAY_BUFFER, colorAxes.size() * sizeof(glm::vec3), colorAxes.data(), GL_STATIC_DRAW);
-			glEnableVertexAttribArray(col);
-			glVertexAttribPointer(col, 3, GL_FLOAT, GL_FALSE, 0, 0);
-
-			glGenBuffers(1, &axisIndexBuffer);
-			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, axisIndexBuffer);
-			glBufferData(GL_ELEMENT_ARRAY_BUFFER, axesIndices.size() * sizeof(GLushort), axesIndices.data(), GL_STATIC_DRAW);
-
-			glBindVertexArray(0);
-
+	}
 	
-			
-			/*
-			// noralenliste und normalenindicesliste drawn.
-			// Step 0: Create vertex array object.
-			glGenVertexArrays(1, &normales.vao);
-			glBindVertexArray(normales.vao);
 
-			// Step 1: Create vertex buffer object for position attribute and bind it to the associated "shader attribute".
-			glGenBuffers(1, &normales.positionBuffer);
-			glBindBuffer(GL_ARRAY_BUFFER, normales.positionBuffer);
-			glBufferData(GL_ARRAY_BUFFER, normalenListe.size() * sizeof(glm::vec3), normalenListe.data(), GL_STATIC_DRAW);
-			// Bind it to position.
-			pos = glGetAttribLocation(programId, "position");
-			glEnableVertexAttribArray(pos);
-			glVertexAttribPointer(pos, 3, GL_FLOAT, GL_FALSE, 0, 0);
-
-			// Step 2: Create vertex buffer object for color attribute and bind it to...
-			glGenBuffers(1, &normales.colorBuffer);
-			glBindBuffer(GL_ARRAY_BUFFER, normales.colorBuffer);
-			glBufferData(GL_ARRAY_BUFFER, colorsNormales.size() * sizeof(glm::vec3), colorsNormales.data(), GL_STATIC_DRAW);
-
-			// Bind it to color.
-			pos = glGetAttribLocation(programId, "color");
-			glEnableVertexAttribArray(pos);
-			glVertexAttribPointer(pos, 3, GL_FLOAT, GL_FALSE, 0, 0);
-			// Step 3: Create vertex buffer object for indices. No binding needed here.
-			glGenBuffers(1, &normales.indexBuffer);
-			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, normales.indexBuffer);
-			glBufferData(GL_ELEMENT_ARRAY_BUFFER, normalenIndicesListe.size() * sizeof(GLushort), normalenIndicesListe.data(), GL_STATIC_DRAW);
-
-			// Unbind vertex array object (back to default).
-			glBindVertexArray(0);
-
-			normales.model = glm::mat4(1.0f);
-			*/
-		}
-        
 		// Modell-Matrix setzen (wird für Kugel und Achse gemeinsam genutzt)
-		this->translationModel = glm::translate(glm::mat4(1.0f), glm::vec3(x, y, z));
-        this->AxisInclinedModel = glm::rotate(glm::mat4(1.0f), glm::radians(initialDegree), glm::vec3(0.0f, 0.0f, 1.0f));
-        this->SphereModel = translationModel * AxisInclinedModel;
+		this->translationModel = glm::translate(glm::mat4(1.0f), transform.position);
+		this->AxisInclinedModel = glm::rotate(glm::mat4(1.0f), glm::radians(degree), glm::vec3(0.0f, 0.0f, 1.0f));
+		this->SphereModel = translationModel * AxisInclinedModel;
+
+		return true;
 	}
 
 	//setze die kugel + achse auf die neue koordinate
@@ -486,13 +525,14 @@ MySphere moon_left;
 
 
 // ================================================================================= RENDER SPHERE =================================================================================
+/*
 void renderSphere() //////////////////////////////////////////////////////////////////////////////////////////////
 {   // Create mvp.
     glm::mat4x4 mvp = projection * view * sphere.model;
 
     // Bind the shader program and set uniform(s).
     program.use();
-    program.setUniform("mvp", mvp);
+	sun.program.use();    program.setUniform("mvp", mvp);
 
     // Bind vertex array object so we can render the 1 triangle.
     glBindVertexArray(sphere.vao);
@@ -500,7 +540,9 @@ void renderSphere() ////////////////////////////////////////////////////////////
     glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_SHORT, 0);
     glBindVertexArray(0);
 }
+*/
 
+/*
 void renderNormales() { //////////////////////////////////////////////////////////////////////////////////////////////
 	glm::mat4x4 mvp = projection * view * normales.model;
 
@@ -529,7 +571,7 @@ void renderKoords() { //////////////////////////////////////////////////////////
     glDrawElements(GL_LINES, 6, GL_UNSIGNED_SHORT, 0);
     glBindVertexArray(0);
 }
-
+*/
 
 
 std::vector<GLushort> calcIndices(int n, std::vector<glm::vec3> subTriangles) { //////////////////////////////////////////////////////////////////////////////////////////////
@@ -622,7 +664,7 @@ std::vector<glm::vec3> calcSphereVertices(int n, std::vector<glm::vec3> sphereVe
 
 // ================================================================================= INIT =================================================================================
 
-//////////////////////////////////////////////////////////////////////////////////////////////
+
 /*
  Initialization. Should return true if everything is ok and false if something went wrong.
  */
@@ -631,10 +673,6 @@ bool init()
   // OpenGL: Set "background" color and enable depth testing.
   glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
   glEnable(GL_DEPTH_TEST);
-  
-  // ================================================================================= Construct view matrix =================================================================================
-  // Construct view matrix.
-
  
   glm::vec3 eye(0.0f, 0.0f, CZoom);
   glm::vec3 center(0.0f, 0.0f, 0.0f);
@@ -642,47 +680,101 @@ bool init()
   
   view = glm::lookAt(eye, center, up);
   
-  // Create a shader program and set light direction.
-  if (!program.compileShaderFromFile("shader/shadedPhong.vert", cg::GLSLShader::VERTEX)) {
-    std::cerr << program.log();
-    return false;
-  }
-  
-  if (!program.compileShaderFromFile("shader/shadedPhong.frag", cg::GLSLShader::FRAGMENT)) {
-    std::cerr << program.log();
-    return false;
-  }
-  
-  if (!program.link()) {
-    std::cerr << program.log();
-    return false;
-  }
-  
- 
-
   // =======================================================================INit sphre auf crack:
   //MySphere mySphere; // Dein neues globales Kugel-Objekt
   float currentRadius = 0.5f; // Optional: um Radius für die Tastatur zu speichern
   int currentSubdivisions = 3; // Optional: um n für die Tastatur zu speichern
-  GLuint programId = program.getHandle();
-
-  // Klasse aufrufen: n=3, radius=0.5, x=0, y=0, z=0, color=gelb
-  sun.init(currentSubdivisions, currentRadius, 0.0f, 0.0f, 0.0f, glm::vec3(1.0f, 1.0f, 0.0f), programId, 0.0f, true);
-
-  planet_right.init(currentSubdivisions, 0.3f, 2.0f, 0.0f, 0.0f, glm::vec3(1.0f, 0.0f, 0.0f), programId, 45.0f, true);
- 
-  planet_left.init(currentSubdivisions, 0.3f, -2.0f, 0.0f, 0.0f, glm::vec3(1.0f, 0.0f, 0.0f), programId, 0.0f, true,180.0f);
   
-  moon_right.init(currentSubdivisions, 0.1f, 2.5f, 0.0f, 0.0f, glm::vec3(0.0f, 0.0f, 1.0f), programId, 0.0f, false);
- 
-  moon_left.init(currentSubdivisions, 0.1f, -2.1f, 0.0f, 0.0f, glm::vec3(0.0f, 0.0f, 1.0f), programId, 0.0f, false);
+
+  
+// --- GEMEINSAME BASIS-WERTE ---
+	GeometryConfig baseGeom;
+baseGeom.subdivisions = currentSubdivisions;
+
+RenderConfig baseRender;
+//baseRender.programId = programId;
+
+MaterialConfig baseMat;
+baseMat.color  = glm::vec3(1.0f, 1.0f, 0.0f);
+baseMat.surfKa = glm::vec3(0.1f, 0.1f, 0.1f);
+baseMat.surfKs = glm::vec3(1.0f, 1.0f, 1.0f);
+
+
+// ==========================================
+// MATERIALIEN FÜR DIE VERSCHIEDENEN KÖRPER 
+// ==========================================
+MaterialConfig sunMat = baseMat;
+sunMat.surfKd = glm::vec3(1.0f, 1.0f, 0.0f); // Gelb
+
+MaterialConfig planetMat = baseMat;
+planetMat.surfKd = glm::vec3(0.8f, 0.1f, 0.1f); // Rötlich
+
+MaterialConfig moonMat = baseMat;
+moonMat.surfKd = glm::vec3(0.2f, 0.2f, 0.2f); // Grau
+
+// ==========================================
+// SONNE
+// ==========================================
+GeometryConfig sunGeom = baseGeom;
+sunGeom.radius = currentRadius;
+
+TransformConfig sunTrans; // Standard ist glm::vec3(0.0f), passt also für die Mitte
+
+RenderConfig sunRender = baseRender;
+sunRender.has_axis = true;
+
+sun.init(sunGeom, sunTrans, sunMat, sunRender);
+
+// ==========================================
+// PLANET RECHTS
+// ==========================================
+GeometryConfig planetGeom = baseGeom;
+planetGeom.radius = 0.3f;
+
+TransformConfig pRightTrans;
+pRightTrans.position = glm::vec3(2.0f, 0.0f, 0.0f);
+pRightTrans.initialDegree = 45.0f;
+
+RenderConfig pRightRender = baseRender;
+pRightRender.has_axis = true;
+
+planet_right.init(planetGeom, pRightTrans, planetMat, pRightRender);
+
+// ==========================================
+// PLANET LINKS
+// ==========================================
+TransformConfig pLeftTrans;
+pLeftTrans.position = glm::vec3(-2.0f, 0.0f, 0.0f);
+pLeftTrans.orbitAngle = 180.0f;
+
+RenderConfig pLeftRender = baseRender;
+pLeftRender.has_axis = true;
+
+// Nutzt dasselbe planetGeom wie der rechte Planet!
+planet_left.init(planetGeom, pLeftTrans, planetMat, pLeftRender);
+
+// ==========================================
+// MOND RECHTS
+// ==========================================
+GeometryConfig moonGeom = baseGeom;
+moonGeom.radius = 0.1f;
+
+TransformConfig mRightTrans;
+mRightTrans.position = glm::vec3(2.5f, 0.0f, 0.0f);
+
+moon_right.init(moonGeom, mRightTrans, moonMat, baseRender);
+
+// ==========================================
+// MOND LINKS
+// ==========================================
+TransformConfig mLeftTrans;
+mLeftTrans.position = glm::vec3(-2.1f, 0.0f, 0.0f);
+
+// gleiche moon geom wie rechter moond
+moon_left.init(moonGeom, mLeftTrans, moonMat, baseRender);
 
   return true;
-
-
 }
-
-
 
 bool start = true;
 
@@ -704,6 +796,12 @@ void render()
 
 	lastTime = currentTime;
 
+	glm::vec3 eye(0.0f, 0.0f, CZoom);
+	glm::vec3 center(0.0f, 0.0f, 0.0f);
+	glm::vec3 up(0.0f, 1.0f, 0.0f);
+
+	view = glm::lookAt(eye, center, up);
+
 	// ==========================================
 	// 1. ANIMATION / UPDATE PHASE
 	// ==========================================
@@ -724,16 +822,13 @@ void render()
 	// ==========================================
 	// 2. ZEICHNEN PHASE
 	// ==========================================
-	sun.render(program, projection, view);
+	sun.render(sun.program, projection, view);
     
-	planet_right.render(program, projection, view);
-	planet_left.render(program, projection, view);
+	planet_right.render(planet_right.program, projection, view);
+	planet_left.render(planet_left.program, projection, view);
 
-	// (Monde erstmal weggelassen, siehe Frage unten)
-	moon_right.render(program, projection, view);
-	moon_left.render(program, projection, view);
-	
-
+	moon_right.render(moon_right.program, projection, view);
+	moon_left.render(moon_left.program, projection, view);
 
 }
 
@@ -773,6 +868,19 @@ void glutKeyboard (unsigned char keycode, int x, int y)
         return;
 
 
+	case '+':
+		if (CZoom > 1)
+		{
+			CZoom -= 0.5f;
+		}
+		break;
+	case '-':
+		if (CZoom < 6)
+		{
+			CZoom += 0.5f;
+			
+		}
+		break;
 	//langsamer
 	case 'd':
 
