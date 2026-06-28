@@ -15,9 +15,9 @@ uniform vec3  surfKd;           // Diffuse reflectivity
 uniform vec3  surfKs;           // Specular reflectivity
 uniform float surfShininess;    // Specular shininess factor
 
-//flat          out vec3 fragmentColor;
+flat          out vec3 fragmentColor;
 //noperspective out vec3 fragmentColor;
-smooth        out vec3 fragmentColor;
+//smooth        out vec3 fragmentColor;
 
 vec3 ads (vec4 Light, float LightI,
           vec3 Ka, vec3 Kd, vec3 Ks, float Shininess,

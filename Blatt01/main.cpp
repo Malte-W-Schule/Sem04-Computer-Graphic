@@ -12,6 +12,7 @@
 #include "GLSLProgram.h"
 #include "GLTools.h"
 #include <glm/gtx/rotate_vector.hpp>
+#include <string>
 
 
 struct GeometryConfig {
@@ -26,6 +27,8 @@ struct TransformConfig {
 };
 
 struct MaterialConfig {
+	const char* pathFrag;
+	const char* pathVert;
 	glm::vec3 color = glm::vec3(1.0f);
 	glm::vec3 surfKa = glm::vec3(0.1f); // Ambient
 	glm::vec3 surfKd = glm::vec3(0.6f); // Diffuse
@@ -86,6 +89,7 @@ float currentPlanetSpeed = 1.0f;
 bool isDepictionSolid = false;
 
 class MySphere;
+bool flatIsOn = true;
 
 unsigned  lightIndex = 1;
 glm::vec4 lights[2] = {
@@ -148,7 +152,7 @@ Object koords;
 void initShader(cg::GLSLProgram& program,glm::vec3 surfKa, glm::vec3 surfKd, glm::vec3 surfKs)
 {
 	program.use();
-	program.setUniform("light", glm::vec3(0, 0, 0));
+	program.setUniform("light", lights[lightIndex]);
 	program.setUniform("lightI", float(1.0f));
 
 	// die farbe
@@ -229,6 +233,8 @@ public:
 
 	float radius = geom.radius;
 
+	//zurücksetzen von program
+	program = cg::GLSLProgram();
 
 
 	std::vector<glm::vec3> StartVertices = {
@@ -256,27 +262,22 @@ public:
 	for (glm::vec3& v : currentVertices) v *= radius;
 	std::vector<glm::vec3> colors(currentVertices.size(), color);
 
-		
+	if (!program.compileShaderFromFile(material.pathVert, cg::GLSLShader::VERTEX)) {
+		std::cerr << program.log();
+		//	return false;
+	}
 
+	if (!program.compileShaderFromFile(material.pathFrag, cg::GLSLShader::FRAGMENT)) {
+		std::cerr << program.log();
+		//	return false;
+	}
 
-
-		// Create a shader program and set light direction.
-		if (!program.compileShaderFromFile("shader/shadedPhong.vert", cg::GLSLShader::VERTEX)) {
-			std::cerr << program.log();
-			//	return false;
-		}
-
-		if (!program.compileShaderFromFile("shader/shadedPhong.frag", cg::GLSLShader::FRAGMENT)) {
-			std::cerr << program.log();
-			//	return false;
-		}
-
-		if (!program.link()) {
-			std::cerr << program.log();
-			//	return false;
-		}
-
-		GLuint programId = program.getHandle();
+	if (!program.link()) {
+		std::cerr << program.log();
+		//	return false;
+	}
+	
+	GLuint programId = program.getHandle();
 
 	// ==========================================
 	// 1. KUGEL INITIALISIEREN
@@ -321,7 +322,7 @@ public:
 	glGenBuffers(1, &positionBuffer);
 	glBindBuffer(GL_ARRAY_BUFFER, positionBuffer);
 	glBufferData(GL_ARRAY_BUFFER, currentVertices.size() * sizeof(glm::vec3), currentVertices.data(), GL_STATIC_DRAW);
-	GLuint pos = glGetAttribLocation(programId, "position");
+	GLint pos = glGetAttribLocation(programId, "position");
 	glEnableVertexAttribArray(pos);
 	glVertexAttribPointer(pos, 3, GL_FLOAT, GL_FALSE, 0, 0);
 
@@ -330,16 +331,17 @@ public:
 	glGenBuffers(1, &colorBuffer);
 	glBindBuffer(GL_ARRAY_BUFFER, colorBuffer);
 	glBufferData(GL_ARRAY_BUFFER, colors.size() * sizeof(glm::vec3), colors.data(), GL_STATIC_DRAW);
-	GLuint col = glGetAttribLocation(programId, "color");
-	glEnableVertexAttribArray(col);
-	glVertexAttribPointer(col, 3, GL_FLOAT, GL_FALSE, 0, 0);
-
+	GLint col = glGetAttribLocation(programId, "color");
+	if (col >= 0) {
+		glEnableVertexAttribArray(col);
+		glVertexAttribPointer(col, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	}
 	// === Normalen ===
 
 	glGenBuffers(1, &normalBuffer);
 	glBindBuffer(GL_ARRAY_BUFFER, normalBuffer);
 	glBufferData(GL_ARRAY_BUFFER, normalenListe.size() * sizeof(glm::vec3), normalenListe.data(), GL_STATIC_DRAW);
-	GLuint nor = glGetAttribLocation(programId, "normal");
+	GLint nor = glGetAttribLocation(programId, "normal");
 	glEnableVertexAttribArray(nor);
 	glVertexAttribPointer(nor, 3, GL_FLOAT, GL_FALSE, 0, 0);
 
@@ -692,13 +694,20 @@ bool init()
 baseGeom.subdivisions = currentSubdivisions;
 
 RenderConfig baseRender;
-//baseRender.programId = programId;
 
 MaterialConfig baseMat;
 baseMat.color  = glm::vec3(1.0f, 1.0f, 0.0f);
 baseMat.surfKa = glm::vec3(0.1f, 0.1f, 0.1f);
 baseMat.surfKs = glm::vec3(1.0f, 1.0f, 1.0f);
 
+if (flatIsOn) {
+	baseMat.pathFrag = "shader/shadedFlat.frag";
+	baseMat.pathVert = "shader/shadedFlat.vert";
+}
+else {
+	baseMat.pathFrag = "shader/shadedGouraud.frag";
+	baseMat.pathVert = "shader/shadedGouraud.vert";
+}
 
 // ==========================================
 // MATERIALIEN FÜR DIE VERSCHIEDENEN KÖRPER 
@@ -920,8 +929,13 @@ void glutKeyboard (unsigned char keycode, int x, int y)
 		break;
 	case '1':
 		lightIndex = 1 - lightIndex; // wechsel 0 -> 1 -> 0...
-    
-        
+		break;
+	case 'F':
+		flatIsOn = !flatIsOn;
+		init();
+		break;
+	case 'G':
+		break;
     glutPostRedisplay();
 
     }
