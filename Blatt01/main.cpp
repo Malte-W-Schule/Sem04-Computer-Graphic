@@ -14,6 +14,10 @@
 #include <glm/gtx/rotate_vector.hpp>
 #include <string>
 
+#include <fstream>
+#include <sstream>
+
+
 
 struct GeometryConfig {
 	int subdivisions = 36;
@@ -525,6 +529,54 @@ MySphere moon_left;
 
 // ================================================================================= Ende MySPHERE =================================================================================
 
+// ================================================================================= Start OBJ einlesen =================================================================================
+
+// Funktion, die den Dateinamen als Parameter nimmt und Zeile für Zeile liest
+void readObjLineByLine(const std::string& filename) {
+	std::ifstream file(filename);
+
+	// Prüfen, ob die Datei überhaupt existiert/geöffnet werden kann
+	if (!file.is_open()) {
+		std::cerr << "Fehler: Konnte die Datei '" << filename << "' nicht oeffnen!" << std::endl;
+		return;
+	}
+
+	std::string line;
+	int lineCounter = 0;
+
+	// Zeile für Zeile einlesen
+	while (std::getline(file, line)) {
+		lineCounter++;
+
+		// Nutze stringstream, um das erste Wort (den Typ) der Zeile zu lesen
+		std::stringstream ss(line);
+		std::string lineType;
+		ss >> lineType;
+
+		// Leere Zeilen überspringen
+		if (lineType.empty()) {
+			continue;
+		}
+
+		// Erkennen, um was für eine Zeile es sich handelt
+		if (lineType == "v") {
+			std::cout << "[Zeile " << lineCounter << "] Punkt (Vertex) gefunden: " << line << "\n";
+		}
+		else if (lineType == "f") {
+			std::cout << "[Zeile " << lineCounter << "] Flaeche (Face) gefunden: " << line << "\n";
+		}
+		else if (lineType == "#") {
+			std::cout << "[Zeile " << lineCounter << "] Kommentar gefunden: " << line << "\n";
+		}
+		else {
+			// Für vt (Texturkoordinaten), vn (Normalen) oder andere .obj Befehle
+			std::cout << "[Zeile " << lineCounter << "] Anderer Typ (" << lineType << "): " << line << "\n";
+		}
+	}
+
+	file.close();
+	std::cout << "\nDatei erfolgreich bis zum Ende eingelesen. Insgesamt " << lineCounter << " Zeilen verarbeitet.\n";
+}
 
 // ================================================================================= RENDER SPHERE =================================================================================
 /*
@@ -947,6 +999,10 @@ void glutKeyboard (unsigned char keycode, int x, int y)
 
 int main(int argc, char** argv){
   // GLUT: Initialize freeglut library (window toolkit).
+	std::string mySpaceShip = "spaceship.obj";
+
+	readObjLineByLine(mySpaceShip);
+
   glutInitWindowSize    (WINDOW_WIDTH, WINDOW_HEIGHT);
   glutInitWindowPosition(40,40);
   glutInit(&argc, argv);
