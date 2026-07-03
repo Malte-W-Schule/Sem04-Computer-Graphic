@@ -44,6 +44,10 @@ struct RenderConfig {
 };
 
 
+std::vector<glm::vec3> spaceShipVert;
+std::vector<GLushort> spaceShipFaceIndex;
+std::vector<glm::vec3> spaceShipNormales;
+
 // Standard window width
 const int WINDOW_WIDTH  = 640;
 // Standard window height
@@ -93,13 +97,18 @@ float currentPlanetSpeed = 1.0f;
 bool isDepictionSolid = false;
 
 class MySphere;
+class MyShip;
 bool flatIsOn = true;
+
+void readObjLineByLine(const std::string& filename);
 
 unsigned  lightIndex = 1;
 glm::vec4 lights[2] = {
 	glm::vec4(0.0f, 1.0f, 0.0f, 0.0f), // Richtungslicht
 	glm::vec4(0.0f, 0.0f, CZoom, 1.0f) // Punktlicht
 };
+
+
 
 // ================================================================================= Size =================================================================================
 
@@ -287,7 +296,7 @@ public:
 	// 1. KUGEL INITIALISIEREN
 	// ==========================================
 
-																															/*======================== Normalen ==========================*/
+																															
 	std::vector<glm::vec3> normalenListe;
 	std::vector<GLushort> normalenIndicesListe;
 
@@ -488,7 +497,7 @@ public:
     - orbitLengh    (distance between both objects)
     - speed:        (rotation speed)
 */
-void rotateVectorFromSphere(MySphere& middle, MySphere& toRotate, float orbitLength, float speed) { //////////////////////////////////////////////////////////////////////////////////////////////
+void rotateVectorFromSphere(MySphere& middle, MySphere& toRotate, float orbitLength, float speed) {
 
 	// 1. Den absoluten Winkel des Mondes (auf seiner Umlaufbahn) aktualisieren
 	toRotate.orbitAngle += speed;
@@ -529,6 +538,185 @@ MySphere moon_left;
 
 // ================================================================================= Ende MySPHERE =================================================================================
 
+// ================================================================================= Start SpaceShip =================================================================================
+
+class MyShip {
+private:
+	// OpenGL Puffer-IDs für das Ship
+	GLuint vao;
+	GLuint positionBuffer;
+	GLuint colorBuffer;
+	GLuint indexBuffer;
+	GLuint normalBuffer;
+public:
+	glm::vec3 center;
+	// Die Modellmatrix gehört zum Objekt
+
+	glm::mat4 translationModel; // wo ist planet position
+
+	glm::mat4 AxisInclinedModel;    // wie ist achse gedreht
+
+	glm::mat4 SphereRotationModel; // 
+
+	glm::mat4 SphereModel;      // alles zsm
+
+	bool has_axis;
+	float degree;
+	float r;
+	float orbitAngle;
+	glm::vec3 surfKa;
+	glm::vec3 surfKd;
+	glm::vec3 surfKs;
+
+	cg::GLSLProgram program;
+
+	int indexCount = 10000;
+
+	MyShip(): vao(0), positionBuffer(0), colorBuffer(0), indexBuffer(0), normalBuffer(0) {}
+
+	bool init(std::vector<glm::vec3> vert, std::vector<GLushort> index, const GeometryConfig& geom, const TransformConfig& transform, const MaterialConfig& material, const RenderConfig& render) {
+
+		this->indexCount = index.size();
+
+		this->surfKa = material.surfKa;
+		this->surfKd = material.surfKd;
+		this->surfKs = material.surfKs;
+		//this->n = geom.subdivisions;
+		//this->r = geom.radius;
+
+		this->center = transform.position;
+
+		this->degree = transform.initialDegree;
+		this->orbitAngle = transform.orbitAngle;
+
+		this->has_axis = render.has_axis;
+
+
+		glm::vec3 color = material.color;
+
+		float radius = geom.radius;
+
+
+
+		if (!program.compileShaderFromFile(material.pathVert, cg::GLSLShader::VERTEX)) {
+			std::cerr << program.log();
+			//	return false;
+		}
+
+		if (!program.compileShaderFromFile(material.pathFrag, cg::GLSLShader::FRAGMENT)) {
+			std::cerr << program.log();
+			//	return false;
+		}
+
+		if (!program.link()) {
+			std::cerr << program.log();
+			//	return false;
+		}
+
+		GLuint programId = program.getHandle();
+
+		// ==========================================
+		//  SHADER ZEUG! Kugel
+		// ==========================================
+
+		if (vao != 0) {
+			glDeleteVertexArrays(1, &vao);
+			glDeleteBuffers(1, &positionBuffer);
+			glDeleteBuffers(1, &colorBuffer);
+			glDeleteBuffers(1, &indexBuffer);
+		}
+
+		initShader(program, surfKa, surfKd, surfKs);
+
+		glGenVertexArrays(1, &vao);
+		glBindVertexArray(vao);
+
+		// === Position ===
+
+		glGenBuffers(1, &positionBuffer);
+		glBindBuffer(GL_ARRAY_BUFFER, positionBuffer);
+		glBufferData(GL_ARRAY_BUFFER, vert.size() * sizeof(glm::vec3), vert.data(), GL_STATIC_DRAW);
+		GLint pos = glGetAttribLocation(programId, "position");
+		glEnableVertexAttribArray(pos);
+		glVertexAttribPointer(pos, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+
+		// === Index ===
+		glGenBuffers(1, &indexBuffer);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer);
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER, index.size() * sizeof(GLushort), index.data(), GL_STATIC_DRAW);
+
+		glBindVertexArray(0);
+
+		return true;
+	}
+
+
+	// Render-ship
+	void render(cg::GLSLProgram& program, const glm::mat4& projection, const glm::mat4& view) { 
+
+		glm::mat4 modelView = view * this->SphereModel;
+		glm::mat3 normalMat = glm::mat3(glm::transpose(glm::inverse(modelView)));
+
+		program.use();
+		program.setUniform("modelviewMatrix", modelView);
+		program.setUniform("projectionMatrix", projection);
+		program.setUniform("normalMatrix", normalMat);
+
+		program.setUniform("light", lights[lightIndex]);
+		// Gemeinsame MVP Matrix für das Objekt
+		/*
+		glm::mat4 mvp = projection * view * this->SphereModel;
+
+		program.use();
+		program.setUniform("mvp", mvp);
+		program.setUniform("light", lights[lightIndex]);
+		*/
+		// --- Ship ZEICHNEN ---
+		glBindVertexArray(vao);
+		if (isDepictionSolid) {
+			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		}
+		else {
+			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		}
+		glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_SHORT, 0);
+
+		// Clean-up
+		glBindVertexArray(0);
+	}
+
+
+};
+
+MyShip ship;
+
+
+// ================================================================================= Ende SpaceShip =================================================================================
+
+// ================================================================================= Beispiel OBJ =================================================================================
+
+/*
+v 0.0 0.0 0.0
+v 1.0 0.0 0.0
+v 1.0 1.0 0.0
+v 0.0 1.0 0.0
+
+
+
+f 1 2 3
+f 1 3 4
+
+f : Die Fläche, definiert durch Indizes. Das Format folgt dem Schema: Eckpunkt/Textur/Normale
+# Beispiel: Dreieck 2 bestehend aus den Punkten 1, 3 und 4
+f 1/1/1 3/3/1 4/4/1
+*/
+
+
+
+
+
+
 // ================================================================================= Start OBJ einlesen =================================================================================
 
 // Funktion, die den Dateinamen als Parameter nimmt und Zeile für Zeile liest
@@ -560,14 +748,67 @@ void readObjLineByLine(const std::string& filename) {
 
 		// Erkennen, um was für eine Zeile es sich handelt
 		if (lineType == "v") {
+
 			std::cout << "[Zeile " << lineCounter << "] Punkt (Vertex) gefunden: " << line << "\n";
+		
+			std::stringstream ss(line);
+
+			float x, y, z;
+			
+			if (ss >> lineType >> x >> y >> z) {
+				spaceShipVert.push_back(glm::vec3( x, y, z) );
+			}
+			
 		}
 		else if (lineType == "f") {
-			std::cout << "[Zeile " << lineCounter << "] Flaeche (Face) gefunden: " << line << "\n";
+			std::stringstream ss(line);
+			std::string type;
+			ss >> type; // f wegwerfen
+
+			std::string block;
+			std::vector<int> faceVertices; // Temporärer Speicher für alle Vertices dieses Polygons
+
+			// 1. Alle Vertices der aktuellen Zeile einlesen und umrechnen
+			while (ss >> block) {
+				std::stringstream blockStream(block);
+				std::string vStr, tStr, nStr;
+
+				std::getline(blockStream, vStr, '/');
+				std::getline(blockStream, tStr, '/');
+				std::getline(blockStream, nStr, '/');
+
+				int vertexIndex = !vStr.empty() ? std::stoi(vStr) : 0;
+				// (tStr und nStr Berechnungen kannst du drin lassen, falls du sie später brauchst)
+
+				if (vertexIndex > 0) vertexIndex--;
+
+				// Wir merken uns erst mal alle Indizes dieser Zeile
+				faceVertices.push_back(vertexIndex);
+			}
+
+			// 2. Die "faule" Triangulierung (Triangle Fan)
+			// Ein Polygon mit N Ecken hat N-2 Dreiecke.
+			// Wir starten ab Index 2 und bauen Dreiecke aus: (0, i-1, i)
+			if (faceVertices.size() >= 3) {
+				for (size_t i = 2; i < faceVertices.size(); ++i) {
+					spaceShipFaceIndex.push_back(faceVertices[0]);     // Ankerpunkt (immer der erste)
+					spaceShipFaceIndex.push_back(faceVertices[i - 1]); // Vorheriger Punkt
+					spaceShipFaceIndex.push_back(faceVertices[i]);     // Aktueller Punkt
+
+					std::cout << "Dreieck generiert -> V1:" << faceVertices[0]
+						<< " V2:" << faceVertices[i - 1]
+						<< " V3:" << faceVertices[i] << "\n";
+				}
+			}
 		}
 		else if (lineType == "#") {
 			std::cout << "[Zeile " << lineCounter << "] Kommentar gefunden: " << line << "\n";
 		}
+		else if (lineType == "vn") {
+			// das sind Normalen, die sollen gespeichert werden
+
+		}
+	
 		else {
 			// Für vt (Texturkoordinaten), vn (Normalen) oder andere .obj Befehle
 			std::cout << "[Zeile " << lineCounter << "] Anderer Typ (" << lineType << "): " << line << "\n";
@@ -577,6 +818,9 @@ void readObjLineByLine(const std::string& filename) {
 	file.close();
 	std::cout << "\nDatei erfolgreich bis zum Ende eingelesen. Insgesamt " << lineCounter << " Zeilen verarbeitet.\n";
 }
+
+// ================================================================================= Ende OBJ einlesen =================================================================================
+
 
 // ================================================================================= RENDER SPHERE =================================================================================
 /*
@@ -834,6 +1078,10 @@ mLeftTrans.position = glm::vec3(-2.1f, 0.0f, 0.0f);
 // gleiche moon geom wie rechter moond
 moon_left.init(moonGeom, mLeftTrans, moonMat, baseRender);
 
+
+
+ship.init(spaceShipVert, spaceShipFaceIndex,moonGeom, mRightTrans, moonMat, baseRender);
+	
   return true;
 }
 
@@ -890,6 +1138,8 @@ void render()
 
 	moon_right.render(moon_right.program, projection, view);
 	moon_left.render(moon_left.program, projection, view);
+
+	ship.render(ship.program, projection, view);
 
 }
 
