@@ -43,10 +43,11 @@ struct RenderConfig {
 	bool has_axis = false;
 };
 
-
+// === SpaceShip Listen ===
 std::vector<glm::vec3> spaceShipVert;
 std::vector<GLushort> spaceShipFaceIndex;
 std::vector<glm::vec3> spaceShipNormales;
+std::vector<glm::vec3> tempNormales;
 
 // Standard window width
 const int WINDOW_WIDTH  = 640;
@@ -98,9 +99,13 @@ bool isDepictionSolid = false;
 
 class MySphere;
 class MyShip;
+
 bool flatIsOn = true;
 
 void readObjLineByLine(const std::string& filename);
+void rotateVectorFromSphere(MySphere& middle, MySphere& toRotate, float orbitLength, float speed);
+void rotateVectorFromSphere(MySphere& middle, MyShip& toRotate, float orbitLength, float speed);
+std::vector<glm::vec3> computeNormales();
 
 unsigned  lightIndex = 1;
 glm::vec4 lights[2] = {
@@ -529,6 +534,7 @@ void rotateVectorFromSphere(MySphere& middle, MySphere& toRotate, float orbitLen
 }
 
 
+
 MySphere sun;
 MySphere planet_right;
 MySphere planet_left;
@@ -558,7 +564,11 @@ public:
 
 	glm::mat4 SphereRotationModel; // 
 
-	glm::mat4 SphereModel;      // alles zsm
+	glm::mat4 SphereModel;  // alles zsm
+
+	glm::mat4 skalierung;
+
+	std::vector<glm::vec3> norm;
 
 	bool has_axis;
 	float degree;
@@ -574,7 +584,7 @@ public:
 
 	MyShip(): vao(0), positionBuffer(0), colorBuffer(0), indexBuffer(0), normalBuffer(0) {}
 
-	bool init(std::vector<glm::vec3> vert, std::vector<GLushort> index, const GeometryConfig& geom, const TransformConfig& transform, const MaterialConfig& material, const RenderConfig& render) {
+	bool init(std::vector<glm::vec3> vert, std::vector<GLushort> index, float skal, const GeometryConfig& geom, const TransformConfig& transform, const MaterialConfig& material, const RenderConfig& render) {
 
 		this->indexCount = index.size();
 
@@ -596,8 +606,16 @@ public:
 
 		float radius = geom.radius;
 
-
-
+		skalierung = {
+			glm::vec4(skal, 0.0f, 0.0f, 0.0f),
+			glm::vec4(0.0f, skal, 0.0f, 0.0f),
+			glm::vec4(0.0, 0.0f, skal, 0.0f),
+			glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)
+		};
+		//normalen holen
+		norm = computeNormales();
+		
+			
 		if (!program.compileShaderFromFile(material.pathVert, cg::GLSLShader::VERTEX)) {
 			std::cerr << program.log();
 			//	return false;
@@ -613,10 +631,12 @@ public:
 			//	return false;
 		}
 
+		
+
 		GLuint programId = program.getHandle();
 
 		// ==========================================
-		//  SHADER ZEUG! Kugel
+		//  SHADER ZEUG! Ship
 		// ==========================================
 
 		if (vao != 0) {
@@ -641,19 +661,36 @@ public:
 		glVertexAttribPointer(pos, 3, GL_FLOAT, GL_FALSE, 0, 0);
 
 
+		// === Normales ===
+		glGenBuffers(1, &normalBuffer);
+		glBindBuffer(GL_ARRAY_BUFFER, normalBuffer);
+		glBufferData(GL_ARRAY_BUFFER, spaceShipNormales.size() * sizeof(glm::vec3), spaceShipNormales.data(), GL_STATIC_DRAW);
+		GLint nor = glGetAttribLocation(programId, "normal");
+		glEnableVertexAttribArray(nor);
+		glVertexAttribPointer(nor, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
 		// === Index ===
 		glGenBuffers(1, &indexBuffer);
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer);
 		glBufferData(GL_ELEMENT_ARRAY_BUFFER, index.size() * sizeof(GLushort), index.data(), GL_STATIC_DRAW);
 
 		glBindVertexArray(0);
+		//model = glm::scale(model, glm::vec3(2.0f, 2.0f, 2.0f));
+		// Modell-Matrix setzen (wird für Kugel und Achse gemeinsam genutzt)
+		this->translationModel = glm::translate(glm::mat4(1.0f), transform.position);
+		this->AxisInclinedModel = glm::rotate(glm::mat4(1.0f), glm::radians(degree), glm::vec3(0.0f, 0.0f, 1.0f));
+		this->skalierung = glm::scale(glm::mat4(1.0f), glm::vec3(skal, skal, skal));
+		this->SphereModel = translationModel * AxisInclinedModel * skalierung;
+		
 
 		return true;
 	}
-
-
+	
+	void setNewCoordinatesForCenter(float x, float y, float z) {
+		this->center = glm::vec3(x, y, z);
+	}
 	// Render-ship
-	void render(cg::GLSLProgram& program, const glm::mat4& projection, const glm::mat4& view) { 
+	void render(cg::GLSLProgram& program, const glm::mat4& projection, const glm::mat4& view) {
 
 		glm::mat4 modelView = view * this->SphereModel;
 		glm::mat3 normalMat = glm::mat3(glm::transpose(glm::inverse(modelView)));
@@ -682,6 +719,8 @@ public:
 		}
 		glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_SHORT, 0);
 
+		
+
 		// Clean-up
 		glBindVertexArray(0);
 	}
@@ -689,10 +728,57 @@ public:
 
 };
 
+std::vector<glm::vec3> computeNormales() {
+	spaceShipVert;		//echter wert
+	spaceShipFaceIndex;	//index
+	spaceShipNormales;	//index
+	tempNormales;		//echter wert
+	std::vector<glm::vec3> normalen;
+
+	for (int i = 0; i < spaceShipVert.size(); i++) {
+
+		// "startwert"
+		glm::vec3 start = spaceShipVert[i];
+		// "normalerwert"
+		glm::vec3 temp = tempNormales[i];
+		// "endwert"
+		glm::vec3 end = start + temp;
+
+		normalen.push_back(start);
+		normalen.push_back(end);
+
+	}
+	return normalen;
+}
+
 MyShip ship;
 
 
 // ================================================================================= Ende SpaceShip =================================================================================
+
+void rotateVectorFromSphere(MySphere& middle, MyShip& toRotate, float orbitLength, float speed) {
+	toRotate.orbitAngle += speed;
+	if (toRotate.orbitAngle >= 360.0f) {
+		toRotate.orbitAngle -= 360.0f;
+	}
+
+	glm::vec3 baseVector(orbitLength, 0.0f, 0.0f);
+	glm::vec3 localOrbitVector = glm::rotate(baseVector, glm::radians(toRotate.orbitAngle), glm::vec3(0.0f, 1.0f, 0.0f));
+	glm::vec3 worldOrbitVector = glm::vec3(middle.AxisInclinedModel * glm::vec4(localOrbitVector, 0.0f));
+
+	glm::vec3 newCenter = middle.center + worldOrbitVector;
+	toRotate.setNewCoordinatesForCenter(newCenter.x, newCenter.y, newCenter.z);
+
+	toRotate.translationModel = glm::translate(glm::mat4(1.0f), toRotate.center);
+
+	// WICHTIG: Im Gegensatz zur Kugel multiplizieren wir hier die Skalierung des Schiffs mit rein!
+	toRotate.SphereModel = toRotate.translationModel * toRotate.SphereRotationModel * toRotate.AxisInclinedModel;
+
+	// Da du in der init()-Methode vom Ship 'skalierung * translationModel * AxisInclinedModel' nutzt,
+	// sollte das hier entsprechend so aussehen:
+	toRotate.SphereModel = toRotate.translationModel * toRotate.SphereRotationModel * toRotate.AxisInclinedModel * toRotate.skalierung;
+	
+}
 
 // ================================================================================= Beispiel OBJ =================================================================================
 
@@ -703,7 +789,6 @@ v 1.0 1.0 0.0
 v 0.0 1.0 0.0
 
 
-
 f 1 2 3
 f 1 3 4
 
@@ -712,18 +797,12 @@ f : Die Fläche, definiert durch Indizes. Das Format folgt dem Schema: Eckpunkt/
 f 1/1/1 3/3/1 4/4/1
 */
 
-
-
-
-
-
 // ================================================================================= Start OBJ einlesen =================================================================================
 
 // Funktion, die den Dateinamen als Parameter nimmt und Zeile für Zeile liest
 void readObjLineByLine(const std::string& filename) {
 	std::ifstream file(filename);
 
-	// Prüfen, ob die Datei überhaupt existiert/geöffnet werden kann
 	if (!file.is_open()) {
 		std::cerr << "Fehler: Konnte die Datei '" << filename << "' nicht oeffnen!" << std::endl;
 		return;
@@ -731,44 +810,38 @@ void readObjLineByLine(const std::string& filename) {
 
 	std::string line;
 	int lineCounter = 0;
+	
 
 	// Zeile für Zeile einlesen
 	while (std::getline(file, line)) {
 		lineCounter++;
 
-		// Nutze stringstream, um das erste Wort (den Typ) der Zeile zu lesen
 		std::stringstream ss(line);
 		std::string lineType;
 		ss >> lineType;
 
-		// Leere Zeilen überspringen
 		if (lineType.empty()) {
 			continue;
 		}
 
-		// Erkennen, um was für eine Zeile es sich handelt
 		if (lineType == "v") {
-
-			std::cout << "[Zeile " << lineCounter << "] Punkt (Vertex) gefunden: " << line << "\n";
-		
-			std::stringstream ss(line);
-
 			float x, y, z;
-			
-			if (ss >> lineType >> x >> y >> z) {
-				spaceShipVert.push_back(glm::vec3( x, y, z) );
+			if (ss >> x >> y >> z) {
+				spaceShipVert.push_back(glm::vec3(x, y, z));
+				spaceShipNormales.push_back(glm::vec3(0.0f, 1.0f, 0.0f));
 			}
-			
+		}
+		else if (lineType == "vn") {
+			float nx, ny, nz;
+			if (ss >> nx >> ny >> nz) {
+				tempNormales.push_back(glm::normalize(glm::vec3(nx, ny, nz)));
+			}
 		}
 		else if (lineType == "f") {
-			std::stringstream ss(line);
-			std::string type;
-			ss >> type; // f wegwerfen
-
 			std::string block;
-			std::vector<int> faceVertices; // Temporärer Speicher für alle Vertices dieses Polygons
+			std::vector<int> faceVertices;
 
-			// 1. Alle Vertices der aktuellen Zeile einlesen und umrechnen
+			// Alle Vertices der aktuellen Zeile einlesen
 			while (ss >> block) {
 				std::stringstream blockStream(block);
 				std::string vStr, tStr, nStr;
@@ -778,45 +851,37 @@ void readObjLineByLine(const std::string& filename) {
 				std::getline(blockStream, nStr, '/');
 
 				int vertexIndex = !vStr.empty() ? std::stoi(vStr) : 0;
-				// (tStr und nStr Berechnungen kannst du drin lassen, falls du sie später brauchst)
+				int normalIndex = !nStr.empty() ? std::stoi(nStr) : 0;
 
+				// -1 wegen  C++
 				if (vertexIndex > 0) vertexIndex--;
+				if (normalIndex > 0) normalIndex--;
 
-				// Wir merken uns erst mal alle Indizes dieser Zeile
+				// vertex mit normale verbinden
+				if (normalIndex >= 0 && normalIndex < tempNormales.size()) {
+					spaceShipNormales[vertexIndex] = tempNormales[normalIndex];
+				}
+
 				faceVertices.push_back(vertexIndex);
 			}
 
-			// 2. Die "faule" Triangulierung (Triangle Fan)
-			// Ein Polygon mit N Ecken hat N-2 Dreiecke.
-			// Wir starten ab Index 2 und bauen Dreiecke aus: (0, i-1, i)
+			// Triangulierung
 			if (faceVertices.size() >= 3) {
 				for (size_t i = 2; i < faceVertices.size(); ++i) {
-					spaceShipFaceIndex.push_back(faceVertices[0]);     // Ankerpunkt (immer der erste)
-					spaceShipFaceIndex.push_back(faceVertices[i - 1]); // Vorheriger Punkt
-					spaceShipFaceIndex.push_back(faceVertices[i]);     // Aktueller Punkt
-
-					std::cout << "Dreieck generiert -> V1:" << faceVertices[0]
-						<< " V2:" << faceVertices[i - 1]
-						<< " V3:" << faceVertices[i] << "\n";
+					spaceShipFaceIndex.push_back(faceVertices[0]);
+					spaceShipFaceIndex.push_back(faceVertices[i - 1]);
+					spaceShipFaceIndex.push_back(faceVertices[i]);
 				}
 			}
 		}
 		else if (lineType == "#") {
-			std::cout << "[Zeile " << lineCounter << "] Kommentar gefunden: " << line << "\n";
-		}
-		else if (lineType == "vn") {
-			// das sind Normalen, die sollen gespeichert werden
-
-		}
-	
-		else {
-			// Für vt (Texturkoordinaten), vn (Normalen) oder andere .obj Befehle
-			std::cout << "[Zeile " << lineCounter << "] Anderer Typ (" << lineType << "): " << line << "\n";
+			// Kommentar (kannst du auch weglassen, wenn es die Konsole zuspammt)
 		}
 	}
 
 	file.close();
-	std::cout << "\nDatei erfolgreich bis zum Ende eingelesen. Insgesamt " << lineCounter << " Zeilen verarbeitet.\n";
+	std::cout << "\nDatei erfolgreich eingelesen. Vertices: " << spaceShipVert.size()
+		<< ", Normalen: " << spaceShipNormales.size() << "\n";
 }
 
 // ================================================================================= Ende OBJ einlesen =================================================================================
@@ -824,7 +889,7 @@ void readObjLineByLine(const std::string& filename) {
 
 // ================================================================================= RENDER SPHERE =================================================================================
 /*
-void renderSphere() //////////////////////////////////////////////////////////////////////////////////////////////
+void renderSphere()
 {   // Create mvp.
     glm::mat4x4 mvp = projection * view * sphere.model;
 
@@ -841,7 +906,7 @@ void renderSphere() ////////////////////////////////////////////////////////////
 */
 
 /*
-void renderNormales() { //////////////////////////////////////////////////////////////////////////////////////////////
+void renderNormales() {
 	glm::mat4x4 mvp = projection * view * normales.model;
 
 	// Bind the shader program and set uniform(s).
@@ -855,7 +920,7 @@ void renderNormales() { ////////////////////////////////////////////////////////
 	glBindVertexArray(0);
 }
     
-void renderKoords() { //////////////////////////////////////////////////////////////////////////////////////////////
+void renderKoords() { 
 
     glm::mat4x4 mvp = projection * view * koords.model;
 
@@ -871,8 +936,7 @@ void renderKoords() { //////////////////////////////////////////////////////////
 }
 */
 
-
-std::vector<GLushort> calcIndices(int n, std::vector<glm::vec3> subTriangles) { //////////////////////////////////////////////////////////////////////////////////////////////
+std::vector<GLushort> calcIndices(int n, std::vector<glm::vec3> subTriangles) { 
 	std::vector<GLushort> sphereIndicesWithSubdivision;
 
 	int numFaces = 8; // Unser Basis-Oktaeder hat 8 Flächen
@@ -914,8 +978,6 @@ std::vector<GLushort> calcIndices(int n, std::vector<glm::vec3> subTriangles) { 
 	return sphereIndicesWithSubdivision;
 }
 
-
-//////////////////////////////////////////////////////////////////////////////////////////////
 std::vector<glm::vec3> calcSphereVertices(int n, std::vector<glm::vec3> sphereVerticesWithoutSubdivision, std::vector<GLushort> sphereIndicesWithoutSubdivision, glm::vec3 center)
 {
 	std::vector<glm::vec3> subTriangles; 
@@ -979,7 +1041,7 @@ bool init()
   view = glm::lookAt(eye, center, up);
   
   // =======================================================================INit sphre auf crack:
-  //MySphere mySphere; // Dein neues globales Kugel-Objekt
+  //MySphere mySphere; //neues globales Kugel-Objekt
   float currentRadius = 0.5f; // Optional: um Radius für die Tastatur zu speichern
   int currentSubdivisions = 3; // Optional: um n für die Tastatur zu speichern
   
@@ -1079,8 +1141,15 @@ mLeftTrans.position = glm::vec3(-2.1f, 0.0f, 0.0f);
 moon_left.init(moonGeom, mLeftTrans, moonMat, baseRender);
 
 
+// ==========================================
+// Space Ship
+// ==========================================
 
-ship.init(spaceShipVert, spaceShipFaceIndex,moonGeom, mRightTrans, moonMat, baseRender);
+TransformConfig mSpaceShipTrans;
+mSpaceShipTrans.position = glm::vec3(60.0f,0.0f, 0.0f);
+
+ship.init(spaceShipVert, spaceShipFaceIndex,0.01f, planetGeom, mSpaceShipTrans, planetMat, baseRender);
+glDrawArrays(GL_LINES, 0, ship.norm.size());
 	
   return true;
 }
@@ -1125,6 +1194,9 @@ void render()
 
     rotateVectorFromSphere(planet_left, moon_left, 0.5f, -2*(deltaTime * planetSpeed * 60.0f));
     rotateVectorFromSphere(planet_right, moon_right, 0.5f, (deltaTime * planetSpeed * 60.0f));
+
+	rotateVectorFromSphere(sun, ship, 1.5f, (deltaTime * planetSpeed * 20.0f));
+
 
     //planet_right.axisRotationModel = glm::rotate(planet_right.axisRotationModel, glm::radians(-0.05f), glm::vec3(0.0f, 1.0f, 0.0f));
     
