@@ -56,8 +56,6 @@ const int WINDOW_HEIGHT = 480;
 // GLUT window id/handle
 int glutID = 0;
 
-bool normalen = false;
-
 glm::vec3 CMYtoRGB(glm::vec3 input);
 glm::vec3 CMYtoHSV(glm::vec3 input);
 glm::vec3 RGBtoHSV(glm::vec3 input);
@@ -66,46 +64,53 @@ glm::vec3 HSVtoRGB(glm::vec3 input);
 glm::vec3 HSVtoCMY(glm::vec3 input);
 void readInLoop();
 
-float min(glm::vec3 input);
-float max(glm::vec3 input);
+class MySphere;
+class MyShip;
+class Box;
 
-	
-glm::mat4x4 view;
-glm::mat4x4 projection;
-
-float zNear = 0.1f;
-float zFar  = 100.0f;
+bool normalen = false;
+bool flatIsOn = true;
+bool shipNormales = false;
+bool planetRotate = true;
+bool isDepictionSolid = false;
 
 int xRotation = 0;
 int yRotation = 0;
 int zRotation = 0;
+int indexCount = 0;
+int indexCountNormals = 0;
+
+float min(glm::vec3 input);
+float max(glm::vec3 input);
+float zNear = 0.1f;
+float zFar  = 100.0f;
+float CZoom = 4.0f;	
+float planetSpeed = 1.0f;
+float currentPlanetSpeed = 1.0f;
 
 GLuint normalBuffer;
+glm::mat4x4 view;
+glm::mat4x4 projection;
 
 std::vector<GLushort> calcIndices(int n, std::vector<glm::vec3> subTriangles);
 std::vector<glm::vec3> calcSphereVertices(int n, std::vector<glm::vec3> sphereVerticesWithoutSubdivision, std::vector<GLushort> sphereIndicesWithoutSubdivision, glm::vec3 center);
+std::vector<glm::vec3> computeNormales();
+
 void renderSphere();
 //void initSphere();
 void renderNormales();
 void renderKoords();
-int indexCount = 0;
-int indexCountNormals = 0;
-float CZoom = 4.0f;
-
-bool planetRotate = true;
-float planetSpeed = 1.0f;
-float currentPlanetSpeed = 1.0f;
-bool isDepictionSolid = false;
-
-class MySphere;
-class MyShip;
-
-bool flatIsOn = true;
-
 void readObjLineByLine(const std::string& filename);
 void rotateVectorFromSphere(MySphere& middle, MySphere& toRotate, float orbitLength, float speed);
 void rotateVectorFromSphere(MySphere& middle, MyShip& toRotate, float orbitLength, float speed);
-std::vector<glm::vec3> computeNormales();
+
+
+
+
+
+
+
+
 
 unsigned  lightIndex = 1;
 glm::vec4 lights[2] = {
@@ -154,9 +159,6 @@ Object normales;
 Object koords;
 
 
-
-// ================================================================================= SPHERE Klasse =================================================================================
-
 /*
 - surfKA = Ambient 
 	- Die ambiente Reflexion (Umgebungslicht).
@@ -181,6 +183,7 @@ void initShader(cg::GLSLProgram& program,glm::vec3 surfKa, glm::vec3 surfKd, glm
 	program.setUniform("surfShininess", float(8.0f));
 }
 
+// ================================================================================= SPHERE Klasse =================================================================================
 
 class MySphere {
 private:
@@ -199,11 +202,9 @@ private:
 	GLuint axisPositionBuffer;
 	GLuint axisColorBuffer;
 	GLuint axisIndexBuffer;
-
 public:
 
 	glm::vec3 center;
-	// Die Modellmatrix gehört zum Objekt
 
 	glm::mat4 translationModel; // wo ist planet position
 
@@ -226,209 +227,185 @@ public:
 	// Konstruktor
 	MySphere() : vao(0), positionBuffer(0), colorBuffer(0), indexBuffer(0), normalBuffer(0), indexCount(0), n(3) {}
 
-//	============================== INIT ==============================	
-	bool init(const GeometryConfig& geom,
-		const TransformConfig& transform,
-		const MaterialConfig& material,
-		const RenderConfig& render) {
+
+	bool init(const GeometryConfig& geom, const TransformConfig& transform, const MaterialConfig& material, const RenderConfig& render) {
+
+		this->surfKa = material.surfKa;
+		this->surfKd = material.surfKd;
+		this->surfKs = material.surfKs;
+		this->n = geom.subdivisions;
+		this->r = geom.radius;
+
+		this->center = transform.position;
+
+		this->degree = transform.initialDegree;
+		this->orbitAngle = transform.orbitAngle;
+
+		this->has_axis = render.has_axis;
 
 
-	this->surfKa = material.surfKa;
-	this->surfKd = material.surfKd;
-	this->surfKs = material.surfKs;
-	this->n = geom.subdivisions;
-	this->r = geom.radius;
+		glm::vec3 color = material.color;
 
-	this->center = transform.position;
+		float radius = geom.radius;
 
-	this->degree = transform.initialDegree;
-	this->orbitAngle = transform.orbitAngle;
-
-	this->has_axis = render.has_axis;
+		//zurücksetzen von program
+		program = cg::GLSLProgram();
 
 
-	glm::vec3 color = material.color;
+		std::vector<glm::vec3> StartVertices = {
+			{ 0.0f,  radius,  0.0f}, // Oben
+			{ 0.0f, -radius,  0.0f}, // Unten
+			{ radius,  0.0f,  0.0f}, // Rechts
+			{-radius,  0.0f,  0.0f}, // Links
+			{ 0.0f,  0.0f,  radius}, // Vorne
+			{ 0.0f,  0.0f, -radius}  // Hinten
+		};
 
-	float radius = geom.radius;
+		std::vector<GLushort> StartIndices = {
+			// untere hälfte
+			0, 4, 2,  0, 2, 5,  0, 5, 3,  0, 3, 4,
+			// Obere hälfte
+			1, 2, 4,  1, 5, 2,  1, 3, 5,  1, 4, 3
+		};
 
-	//zurücksetzen von program
-	program = cg::GLSLProgram();
+		glm::vec3 center(0.0f, 0.0f, 0.0f);
+		std::vector<glm::vec3> currentVertices = calcSphereVertices(this->n, StartVertices, StartIndices, center);
+		std::vector<GLushort> currentIndices = calcIndices(this->n, currentVertices);
 
+		this->indexCount = currentIndices.size();
 
-	std::vector<glm::vec3> StartVertices = {
-		{ 0.0f,  radius,  0.0f}, // Oben
-		{ 0.0f, -radius,  0.0f}, // Unten
-		{ radius,  0.0f,  0.0f}, // Rechts
-		{-radius,  0.0f,  0.0f}, // Links
-		{ 0.0f,  0.0f,  radius}, // Vorne
-		{ 0.0f,  0.0f, -radius}  // Hinten
-	};
+		for (glm::vec3& v : currentVertices) v *= radius;
+		std::vector<glm::vec3> colors(currentVertices.size(), color);
 
-	std::vector<GLushort> StartIndices = {
-		// untere hälfte
-		0, 4, 2,  0, 2, 5,  0, 5, 3,  0, 3, 4,
-		// Obere hälfte
-		1, 2, 4,  1, 5, 2,  1, 3, 5,  1, 4, 3
-	};
-
-	glm::vec3 center(0.0f, 0.0f, 0.0f);
-	std::vector<glm::vec3> currentVertices = calcSphereVertices(this->n, StartVertices, StartIndices, center);
-	std::vector<GLushort> currentIndices = calcIndices(this->n, currentVertices);
-
-	this->indexCount = currentIndices.size();
-
-	for (glm::vec3& v : currentVertices) v *= radius;
-	std::vector<glm::vec3> colors(currentVertices.size(), color);
-
-	if (!program.compileShaderFromFile(material.pathVert, cg::GLSLShader::VERTEX)) {
-		std::cerr << program.log();
-		//	return false;
-	}
-
-	if (!program.compileShaderFromFile(material.pathFrag, cg::GLSLShader::FRAGMENT)) {
-		std::cerr << program.log();
-		//	return false;
-	}
-
-	if (!program.link()) {
-		std::cerr << program.log();
-		//	return false;
-	}
-	
-	GLuint programId = program.getHandle();
-
-	// ==========================================
-	// 1. KUGEL INITIALISIEREN
-	// ==========================================
-
-																															
-	std::vector<glm::vec3> normalenListe;
-	std::vector<GLushort> normalenIndicesListe;
-
-	for (auto& a : currentVertices)
-	{
-		//glm::vec3 normalePunkt = a + (a - center);
-		glm::vec3 normalePunkt = glm::normalize(a);
-
-		normalenListe.push_back(normalePunkt);
-	}
-
-	std::vector<glm::vec3> colorsNormales;
-	// Für jeden generierten Punkt exakt einen Farbwert anlegen
-	for (size_t i = 0; i < normalenListe.size(); i++) {
-		colorsNormales.push_back(glm::vec3(0.0f, 1.0f, 0.0f)); // Alles grün
-	}
-
-	// ==========================================
-	//  SHADER ZEUG! Kugel
-	// ==========================================
-
-	if (vao != 0) {
-		glDeleteVertexArrays(1, &vao);
-		glDeleteBuffers(1, &positionBuffer);
-		glDeleteBuffers(1, &colorBuffer);
-		glDeleteBuffers(1, &indexBuffer);
-	}
-
-	initShader(program, surfKa, surfKd, surfKs);
-
-	glGenVertexArrays(1, &vao);
-	glBindVertexArray(vao);
-
-	// === Position ===
-
-	glGenBuffers(1, &positionBuffer);
-	glBindBuffer(GL_ARRAY_BUFFER, positionBuffer);
-	glBufferData(GL_ARRAY_BUFFER, currentVertices.size() * sizeof(glm::vec3), currentVertices.data(), GL_STATIC_DRAW);
-	GLint pos = glGetAttribLocation(programId, "position");
-	glEnableVertexAttribArray(pos);
-	glVertexAttribPointer(pos, 3, GL_FLOAT, GL_FALSE, 0, 0);
-
-	// === Color ===
-
-	glGenBuffers(1, &colorBuffer);
-	glBindBuffer(GL_ARRAY_BUFFER, colorBuffer);
-	glBufferData(GL_ARRAY_BUFFER, colors.size() * sizeof(glm::vec3), colors.data(), GL_STATIC_DRAW);
-	GLint col = glGetAttribLocation(programId, "color");
-	if (col >= 0) {
-		glEnableVertexAttribArray(col);
-		glVertexAttribPointer(col, 3, GL_FLOAT, GL_FALSE, 0, 0);
-	}
-	// === Normalen ===
-
-	glGenBuffers(1, &normalBuffer);
-	glBindBuffer(GL_ARRAY_BUFFER, normalBuffer);
-	glBufferData(GL_ARRAY_BUFFER, normalenListe.size() * sizeof(glm::vec3), normalenListe.data(), GL_STATIC_DRAW);
-	GLint nor = glGetAttribLocation(programId, "normal");
-	glEnableVertexAttribArray(nor);
-	glVertexAttribPointer(nor, 3, GL_FLOAT, GL_FALSE, 0, 0);
-
-	glGenBuffers(1, &indexBuffer);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, currentIndices.size() * sizeof(GLushort), currentIndices.data(), GL_STATIC_DRAW);
-
-	glBindVertexArray(0);
-
-
-
-
-
-	// ==========================================
-	// 2. ACHSEN INITIALISIEREN (EIGENE PUFFER!)
-	// ==========================================
-	if (has_axis) {
-		std::vector<glm::vec3> axesVertices;
-		std::vector<GLushort> axesIndices = { 0, 1 };
-
-		// Y-Achse (oben und unten)
-		glm::vec3 posAxes = (StartVertices[0] - center) * 2.0f + center;
-		glm::vec3 negAxes = (StartVertices[1] - center) * 2.0f + center;
-
-		axesVertices.push_back(posAxes);
-		axesVertices.push_back(negAxes);
-
-		std::vector<glm::vec3> colorAxes = { glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f) };
-
-
-		// ==========================================
-		// 3. SHADER ZEUG! Achsen
-		// ==========================================
-
-		if (axisVao != 0) {
-			glDeleteVertexArrays(1, &axisVao);
-			glDeleteBuffers(1, &axisPositionBuffer);
-			glDeleteBuffers(1, &axisColorBuffer);
-			glDeleteBuffers(1, &axisIndexBuffer);
-
+		if (!program.compileShaderFromFile(material.pathVert, cg::GLSLShader::VERTEX)) {
+			std::cerr << program.log();
+			//	return false;
 		}
 
+		if (!program.compileShaderFromFile(material.pathFrag, cg::GLSLShader::FRAGMENT)) {
+			std::cerr << program.log();
+			//	return false;
+		}
 
-		glGenVertexArrays(1, &axisVao);
-		glBindVertexArray(axisVao);
+		if (!program.link()) {
+			std::cerr << program.log();
+			//	return false;
+		}
+	
+		GLuint programId = program.getHandle();
 
-		glGenBuffers(1, &axisPositionBuffer);
-		glBindBuffer(GL_ARRAY_BUFFER, axisPositionBuffer);
-		glBufferData(GL_ARRAY_BUFFER, axesVertices.size() * sizeof(glm::vec3), axesVertices.data(), GL_STATIC_DRAW);
+		// ==========================================
+		// 1. KUGEL INITIALISIEREN
+		// ==========================================
+
+																															
+		std::vector<glm::vec3> normalenListe;
+		std::vector<GLushort> normalenIndicesListe;
+
+		for (auto& a : currentVertices){
+			//glm::vec3 normalePunkt = a + (a - center);
+			glm::vec3 normalePunkt = glm::normalize(a);
+			normalenListe.push_back(normalePunkt);
+		}
+
+		std::vector<glm::vec3> colorsNormales;
+		// Für jeden generierten Punkt exakt einen Farbwert anlegen
+		for (size_t i = 0; i < normalenListe.size(); i++) {
+		colorsNormales.push_back(glm::vec3(0.0f, 1.0f, 0.0f)); // Alles grün
+		}
+
+		// ==========================================
+		//  SHADER ZEUG! Kugel
+		// ==========================================
+
+		if (vao != 0) {
+			glDeleteVertexArrays(1, &vao);
+			glDeleteBuffers(1, &positionBuffer);
+			glDeleteBuffers(1, &colorBuffer);
+			glDeleteBuffers(1, &indexBuffer);
+		}
+
+		initShader(program, surfKa, surfKd, surfKs);
+
+		glGenVertexArrays(1, &vao);
+		glBindVertexArray(vao);
+
+		// === Position ===
+		glGenBuffers(1, &positionBuffer);
+		glBindBuffer(GL_ARRAY_BUFFER, positionBuffer);
+		glBufferData(GL_ARRAY_BUFFER, currentVertices.size() * sizeof(glm::vec3), currentVertices.data(), GL_STATIC_DRAW);
+		GLint pos = glGetAttribLocation(programId, "position");
 		glEnableVertexAttribArray(pos);
 		glVertexAttribPointer(pos, 3, GL_FLOAT, GL_FALSE, 0, 0);
 
-		glGenBuffers(1, &axisColorBuffer);
-		glBindBuffer(GL_ARRAY_BUFFER, axisColorBuffer);
-		glBufferData(GL_ARRAY_BUFFER, colorAxes.size() * sizeof(glm::vec3), colorAxes.data(), GL_STATIC_DRAW);
-		glEnableVertexAttribArray(col);
-		glVertexAttribPointer(col, 3, GL_FLOAT, GL_FALSE, 0, 0);
+		// === Color ===
+		glGenBuffers(1, &colorBuffer);
+		glBindBuffer(GL_ARRAY_BUFFER, colorBuffer);
+		glBufferData(GL_ARRAY_BUFFER, colors.size() * sizeof(glm::vec3), colors.data(), GL_STATIC_DRAW);
+		GLint col = glGetAttribLocation(programId, "color");
+		if (col >= 0) {
+			glEnableVertexAttribArray(col);
+			glVertexAttribPointer(col, 3, GL_FLOAT, GL_FALSE, 0, 0);
+		}
+		// === Normalen ===
+		glGenBuffers(1, &normalBuffer);
+		glBindBuffer(GL_ARRAY_BUFFER, normalBuffer);
+		glBufferData(GL_ARRAY_BUFFER, normalenListe.size() * sizeof(glm::vec3), normalenListe.data(), GL_STATIC_DRAW);
+		GLint nor = glGetAttribLocation(programId, "normal");
+		glEnableVertexAttribArray(nor);
+		glVertexAttribPointer(nor, 3, GL_FLOAT, GL_FALSE, 0, 0);
 
-		glGenBuffers(1, &axisIndexBuffer);
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, axisIndexBuffer);
-		glBufferData(GL_ELEMENT_ARRAY_BUFFER, axesIndices.size() * sizeof(GLushort), axesIndices.data(), GL_STATIC_DRAW);
+		glGenBuffers(1, &indexBuffer);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer);
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER, currentIndices.size() * sizeof(GLushort), currentIndices.data(), GL_STATIC_DRAW);
 
 		glBindVertexArray(0);
 
+		// ==========================================
+		// 2. ACHSEN INITIALISIEREN (EIGENE PUFFER!)
+		// ==========================================
+		if (has_axis) {
+			std::vector<glm::vec3> axesVertices;
+			std::vector<GLushort> axesIndices = { 0, 1 };
+			// Y-Achse (oben und unten)
+			glm::vec3 posAxes = (StartVertices[0] - center) * 2.0f + center;
+			glm::vec3 negAxes = (StartVertices[1] - center) * 2.0f + center;
+			axesVertices.push_back(posAxes);
+			axesVertices.push_back(negAxes);
+			std::vector<glm::vec3> colorAxes = { glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f) };
 
-			
-	}
-	
 
+			// ==========================================
+			// 3. SHADER ZEUG! Achsen
+			// ==========================================
+			if (axisVao != 0) {
+				glDeleteVertexArrays(1, &axisVao);
+				glDeleteBuffers(1, &axisPositionBuffer);
+				glDeleteBuffers(1, &axisColorBuffer);
+				glDeleteBuffers(1, &axisIndexBuffer);
+			}
+
+			glGenVertexArrays(1, &axisVao);
+			glBindVertexArray(axisVao);
+
+			glGenBuffers(1, &axisPositionBuffer);
+			glBindBuffer(GL_ARRAY_BUFFER, axisPositionBuffer);
+			glBufferData(GL_ARRAY_BUFFER, axesVertices.size() * sizeof(glm::vec3), axesVertices.data(), GL_STATIC_DRAW);
+			glEnableVertexAttribArray(pos);
+			glVertexAttribPointer(pos, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+			glGenBuffers(1, &axisColorBuffer);
+			glBindBuffer(GL_ARRAY_BUFFER, axisColorBuffer);
+			glBufferData(GL_ARRAY_BUFFER, colorAxes.size() * sizeof(glm::vec3), colorAxes.data(), GL_STATIC_DRAW);
+			glEnableVertexAttribArray(col);
+			glVertexAttribPointer(col, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+			glGenBuffers(1, &axisIndexBuffer);
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, axisIndexBuffer);
+			glBufferData(GL_ELEMENT_ARRAY_BUFFER, axesIndices.size() * sizeof(GLushort), axesIndices.data(), GL_STATIC_DRAW);
+
+			glBindVertexArray(0);	
+		}
 		// Modell-Matrix setzen (wird für Kugel und Achse gemeinsam genutzt)
 		this->translationModel = glm::translate(glm::mat4(1.0f), transform.position);
 		this->AxisInclinedModel = glm::rotate(glm::mat4(1.0f), glm::radians(degree), glm::vec3(0.0f, 0.0f, 1.0f));
@@ -438,13 +415,11 @@ public:
 	}
 
 	//setze die kugel + achse auf die neue koordinate
-    void setNewCoordinatesForCenter(float x, float y, float z) {					//////////////////////////////////////////////////////////////////////////////////////////////
+    void setNewCoordinatesForCenter(float x, float y, float z) {					
        this->center = glm::vec3(x,y,z);
-
     }
 
-	// Render-Funktion direkt in der Klasse
-	void render(cg::GLSLProgram& program, const glm::mat4& projection, const glm::mat4& view) { //////////////////////////////////////////////////////////////////////////////////////////////
+	void render(cg::GLSLProgram& program, const glm::mat4& projection, const glm::mat4& view) { 
 
 		glm::mat4 modelView = view * this->SphereModel;
 		glm::mat3 normalMat = glm::mat3(glm::transpose(glm::inverse(modelView)));
@@ -489,19 +464,8 @@ public:
 		// Clean-up
 		glBindVertexArray(0);
 	}
-
-	
 };
 
-/*
-    //berechne den kreis auf dem bewegt wird
-
-    Params:
-    - middle        (MySphere object which gets rotated around)
-    - toRotate      (MySphere object which gets rotated)
-    - orbitLengh    (distance between both objects)
-    - speed:        (rotation speed)
-*/
 void rotateVectorFromSphere(MySphere& middle, MySphere& toRotate, float orbitLength, float speed) {
 
 	// 1. Den absoluten Winkel des Mondes (auf seiner Umlaufbahn) aktualisieren
@@ -533,8 +497,6 @@ void rotateVectorFromSphere(MySphere& middle, MySphere& toRotate, float orbitLen
 	toRotate.SphereModel = toRotate.translationModel * toRotate.SphereRotationModel * toRotate.AxisInclinedModel;
 }
 
-
-
 MySphere sun;
 MySphere planet_right;
 MySphere planet_left;
@@ -554,10 +516,11 @@ private:
 	GLuint colorBuffer;
 	GLuint indexBuffer;
 	GLuint normalBuffer;
+	GLuint normalLineBuffer;
+	GLuint normalVAO;
 public:
 	glm::vec3 center;
-	// Die Modellmatrix gehört zum Objekt
-
+	
 	glm::mat4 translationModel; // wo ist planet position
 
 	glm::mat4 AxisInclinedModel;    // wie ist achse gedreht
@@ -582,7 +545,7 @@ public:
 
 	int indexCount = 10000;
 
-	MyShip(): vao(0), positionBuffer(0), colorBuffer(0), indexBuffer(0), normalBuffer(0) {}
+	MyShip(): vao(0), normalVAO(0), positionBuffer(0), colorBuffer(0), indexBuffer(0), normalBuffer(0), normalLineBuffer(0) {}
 
 	bool init(std::vector<glm::vec3> vert, std::vector<GLushort> index, float skal, const GeometryConfig& geom, const TransformConfig& transform, const MaterialConfig& material, const RenderConfig& render) {
 
@@ -591,8 +554,6 @@ public:
 		this->surfKa = material.surfKa;
 		this->surfKd = material.surfKd;
 		this->surfKs = material.surfKs;
-		//this->n = geom.subdivisions;
-		//this->r = geom.radius;
 
 		this->center = transform.position;
 
@@ -614,7 +575,6 @@ public:
 		};
 		//normalen holen
 		norm = computeNormales();
-		
 			
 		if (!program.compileShaderFromFile(material.pathVert, cg::GLSLShader::VERTEX)) {
 			std::cerr << program.log();
@@ -631,14 +591,29 @@ public:
 			//	return false;
 		}
 
-		
-
 		GLuint programId = program.getHandle();
+
+		// ==========================================
+		//  SHADER ZEUG! Normalen zeichnen
+		// ==========================================
+
+		glGenVertexArrays(1, &normalVAO);
+		glBindVertexArray(normalVAO);
+
+		glGenBuffers(1, &normalLineBuffer);
+		glBindBuffer(GL_ARRAY_BUFFER, normalLineBuffer);
+
+		glBufferData(GL_ARRAY_BUFFER, norm.size() * sizeof(glm::vec3), norm.data(),GL_STATIC_DRAW);
+
+		GLint normalPos = glGetAttribLocation(programId, "position");
+		glEnableVertexAttribArray(normalPos);
+		glVertexAttribPointer(normalPos, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
+
+		glBindVertexArray(0);
 
 		// ==========================================
 		//  SHADER ZEUG! Ship
 		// ==========================================
-
 		if (vao != 0) {
 			glDeleteVertexArrays(1, &vao);
 			glDeleteBuffers(1, &positionBuffer);
@@ -652,14 +627,12 @@ public:
 		glBindVertexArray(vao);
 
 		// === Position ===
-
 		glGenBuffers(1, &positionBuffer);
 		glBindBuffer(GL_ARRAY_BUFFER, positionBuffer);
 		glBufferData(GL_ARRAY_BUFFER, vert.size() * sizeof(glm::vec3), vert.data(), GL_STATIC_DRAW);
 		GLint pos = glGetAttribLocation(programId, "position");
 		glEnableVertexAttribArray(pos);
 		glVertexAttribPointer(pos, 3, GL_FLOAT, GL_FALSE, 0, 0);
-
 
 		// === Normales ===
 		glGenBuffers(1, &normalBuffer);
@@ -675,21 +648,19 @@ public:
 		glBufferData(GL_ELEMENT_ARRAY_BUFFER, index.size() * sizeof(GLushort), index.data(), GL_STATIC_DRAW);
 
 		glBindVertexArray(0);
-		//model = glm::scale(model, glm::vec3(2.0f, 2.0f, 2.0f));
-		// Modell-Matrix setzen (wird für Kugel und Achse gemeinsam genutzt)
+
 		this->translationModel = glm::translate(glm::mat4(1.0f), transform.position);
 		this->AxisInclinedModel = glm::rotate(glm::mat4(1.0f), glm::radians(degree), glm::vec3(0.0f, 0.0f, 1.0f));
 		this->skalierung = glm::scale(glm::mat4(1.0f), glm::vec3(skal, skal, skal));
 		this->SphereModel = translationModel * AxisInclinedModel * skalierung;
 		
-
 		return true;
 	}
 	
 	void setNewCoordinatesForCenter(float x, float y, float z) {
 		this->center = glm::vec3(x, y, z);
 	}
-	// Render-ship
+	
 	void render(cg::GLSLProgram& program, const glm::mat4& projection, const glm::mat4& view) {
 
 		glm::mat4 modelView = view * this->SphereModel;
@@ -719,13 +690,16 @@ public:
 		}
 		glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_SHORT, 0);
 
-		
+		if (shipNormales)
+		{
+			glBindVertexArray(normalVAO);
+			glDrawArrays(GL_LINES, 0, norm.size());
+			glBindVertexArray(0);
+		}
 
 		// Clean-up
 		glBindVertexArray(0);
 	}
-
-
 };
 
 std::vector<glm::vec3> computeNormales() {
@@ -735,14 +709,12 @@ std::vector<glm::vec3> computeNormales() {
 	tempNormales;		//echter wert
 	std::vector<glm::vec3> normalen;
 
+	std::cout << "vert größe" << spaceShipVert.size() << "normalen größe" << tempNormales.size() << std::endl;
+
 	for (int i = 0; i < spaceShipVert.size(); i++) {
 
-		// "startwert"
 		glm::vec3 start = spaceShipVert[i];
-		// "normalerwert"
-		glm::vec3 temp = tempNormales[i];
-		// "endwert"
-		glm::vec3 end = start + temp;
+		glm::vec3 end = start + spaceShipNormales[i];
 
 		normalen.push_back(start);
 		normalen.push_back(end);
@@ -752,9 +724,6 @@ std::vector<glm::vec3> computeNormales() {
 }
 
 MyShip ship;
-
-
-// ================================================================================= Ende SpaceShip =================================================================================
 
 void rotateVectorFromSphere(MySphere& middle, MyShip& toRotate, float orbitLength, float speed) {
 	toRotate.orbitAngle += speed;
@@ -774,32 +743,144 @@ void rotateVectorFromSphere(MySphere& middle, MyShip& toRotate, float orbitLengt
 	// WICHTIG: Im Gegensatz zur Kugel multiplizieren wir hier die Skalierung des Schiffs mit rein!
 	toRotate.SphereModel = toRotate.translationModel * toRotate.SphereRotationModel * toRotate.AxisInclinedModel;
 
-	// Da du in der init()-Methode vom Ship 'skalierung * translationModel * AxisInclinedModel' nutzt,
-	// sollte das hier entsprechend so aussehen:
 	toRotate.SphereModel = toRotate.translationModel * toRotate.SphereRotationModel * toRotate.AxisInclinedModel * toRotate.skalierung;
 	
 }
+// ================================================================================= Ende SpaceShip =================================================================================
 
-// ================================================================================= Beispiel OBJ =================================================================================
+// ================================================================================= Anfang Box ======================================================================================
+class Box {
+private:
+	int indexCount;
 
-/*
-v 0.0 0.0 0.0
-v 1.0 0.0 0.0
-v 1.0 1.0 0.0
-v 0.0 1.0 0.0
+	// OpenGL Puffer-IDs für die Kugel
+	GLuint vao;
+	GLuint positionBuffer;
+	GLuint colorBuffer;
+	GLuint indexBuffer;
+	GLuint normalBuffer;
+
+public:
+
+	glm::vec3 center;
+	// Die Modellmatrix gehört zum Objekt
+
+	glm::mat4 translationModel; // wo ist planet position
+
+	glm::mat4 AxisInclinedModel;    // wie ist achse gedreht
+
+	glm::mat4 SphereRotationModel; // 
+
+	glm::mat4 Model;      // alles zsm
+
+	bool has_axis;
+	float degree;
+	float r;
+	float orbitAngle;
+	glm::vec3 surfKa;
+	glm::vec3 surfKd;
+	glm::vec3 surfKs;
+
+	std::vector<glm::vec3> verticesBox;
+
+	cg::GLSLProgram program;
 
 
-f 1 2 3
-f 1 3 4
+	Box() : vao(0), positionBuffer(0), colorBuffer(0), indexBuffer(0), normalBuffer(0), indexCount(0){}
 
-f : Die Fläche, definiert durch Indizes. Das Format folgt dem Schema: Eckpunkt/Textur/Normale
-# Beispiel: Dreieck 2 bestehend aus den Punkten 1, 3 und 4
-f 1/1/1 3/3/1 4/4/1
-*/
+	void init(glm::vec3 center, float lengthX, float lengthY, float lengthZ) {
+		// 1. Halbe Längen berechnen
+		float hX = lengthX / 2.0f;
+		float hY = lengthY / 2.0f;
+		float hZ = lengthZ / 2.0f;
+
+		// 2. Alle 8 Eckpunkte relativ zum Center berechnen
+		// Unten (Negativ Z)
+		glm::vec3 lbb = center + glm::vec3(-hX, -hY, -hZ); // Links-Unten-Hinten
+		glm::vec3 rbb = center + glm::vec3( hX, -hY, -hZ); // Rechts-Unten-Hinten
+		glm::vec3 ltb = center + glm::vec3(-hX,  hY, -hZ); // Links-Oben-Hinten
+		glm::vec3 rtb = center + glm::vec3( hX,  hY, -hZ); // Rechts-Oben-Hinten
+
+		// Oben (Positiv Z)
+		glm::vec3 lbf = center + glm::vec3(-hX, -hY,  hZ); // Links-Unten-Vorne
+		glm::vec3 rbf = center + glm::vec3( hX, -hY,  hZ); // Rechts-Unten-Vorne
+		glm::vec3 ltf = center + glm::vec3(-hX,  hY,  hZ); // Links-Oben-Vorne
+		glm::vec3 rtf = center + glm::vec3( hX,  hY,  hZ); // Rechts-Oben-Vorne
+
+		// 3. Die 12 Linien (Kanten) der Box für GL_LINES füllen
+		// Unterer Ring
+		verticesBox.push_back(lbb); verticesBox.push_back(rbb);
+		verticesBox.push_back(rbb); verticesBox.push_back(rbf);
+		verticesBox.push_back(rbf); verticesBox.push_back(lbf);
+		verticesBox.push_back(lbf); verticesBox.push_back(lbb);
+
+		// Oberer Ring
+		verticesBox.push_back(ltb); verticesBox.push_back(rtb);
+		verticesBox.push_back(rtb); verticesBox.push_back(rtf);
+		verticesBox.push_back(rtf); verticesBox.push_back(ltf);
+		verticesBox.push_back(ltf); verticesBox.push_back(ltb);
+
+		// Vertikale Säulen, die unten und oben verbinden
+		verticesBox.push_back(lbb); verticesBox.push_back(ltb);
+		verticesBox.push_back(rbb); verticesBox.push_back(rtb);
+		verticesBox.push_back(lbf); verticesBox.push_back(ltf);
+		verticesBox.push_back(rbf); verticesBox.push_back(rtf);
+		
+		
+		// ==========================================
+		//  SHADER ZEUG! Box
+		// ==========================================
+
+		if (!program.compileShaderFromFile("shader/simple.vert", cg::GLSLShader::VERTEX)) {
+			std::cerr << program.log();
+			//	return false;
+		}
+
+		if (!program.compileShaderFromFile("shader/simple.frag", cg::GLSLShader::FRAGMENT)) {
+			std::cerr << program.log();
+			//	return false;
+		}
+
+		if (!program.link()) {
+			std::cerr << program.log();
+			//	return false;
+		}
+
+		GLuint programId = program.getHandle();
+
+		glGenVertexArrays(1, &vao);
+		glBindVertexArray(vao);
+
+		glGenBuffers(1, &positionBuffer);
+		glBindBuffer(GL_ARRAY_BUFFER, positionBuffer);
+
+		glBufferData(GL_ARRAY_BUFFER, verticesBox.size() * sizeof(glm::vec3), verticesBox.data(), GL_STATIC_DRAW);
+
+		GLint pos = glGetAttribLocation(programId, "position");
+		glEnableVertexAttribArray(pos);
+		glVertexAttribPointer(pos, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
+
+		glBindVertexArray(0);
+	}
+
+	void render(cg::GLSLProgram& program, const glm::mat4& projection, const glm::mat4& view) {
+		// Create mvp.
+		glm::mat4x4 mvp = projection * view * Model;
+
+		// Bind the shader program and set uniform(s).
+		program.use();
+		program.setUniform("mvp", mvp);
+
+		glBindVertexArray(vao);
+		glDrawArrays(GL_LINES, 0, verticesBox.size());
+		glBindVertexArray(0);
+	}
+};
+// ================================================================================= Ende Box =================================================================================
+
+Box box;
 
 // ================================================================================= Start OBJ einlesen =================================================================================
-
-// Funktion, die den Dateinamen als Parameter nimmt und Zeile für Zeile liest
 void readObjLineByLine(const std::string& filename) {
 	std::ifstream file(filename);
 
@@ -883,13 +964,11 @@ void readObjLineByLine(const std::string& filename) {
 	std::cout << "\nDatei erfolgreich eingelesen. Vertices: " << spaceShipVert.size()
 		<< ", Normalen: " << spaceShipNormales.size() << "\n";
 }
-
 // ================================================================================= Ende OBJ einlesen =================================================================================
 
 
 // ================================================================================= RENDER SPHERE =================================================================================
-/*
-void renderSphere()
+/*void renderSphere()
 {   // Create mvp.
     glm::mat4x4 mvp = projection * view * sphere.model;
 
@@ -903,9 +982,7 @@ void renderSphere()
     glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_SHORT, 0);
     glBindVertexArray(0);
 }
-*/
 
-/*
 void renderNormales() {
 	glm::mat4x4 mvp = projection * view * normales.model;
 
@@ -919,7 +996,6 @@ void renderNormales() {
 	glDrawElements(GL_LINES, indexCountNormals, GL_UNSIGNED_SHORT, 0);
 	glBindVertexArray(0);
 }
-    
 void renderKoords() { 
 
     glm::mat4x4 mvp = projection * view * koords.model;
@@ -933,9 +1009,9 @@ void renderKoords() {
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     glDrawElements(GL_LINES, 6, GL_UNSIGNED_SHORT, 0);
     glBindVertexArray(0);
-}
-*/
+}*/
 
+// ================================================================================= Berechnungen Kugel =================================================================================
 std::vector<GLushort> calcIndices(int n, std::vector<glm::vec3> subTriangles) { 
 	std::vector<GLushort> sphereIndicesWithSubdivision;
 
@@ -977,7 +1053,6 @@ std::vector<GLushort> calcIndices(int n, std::vector<glm::vec3> subTriangles) {
 	}
 	return sphereIndicesWithSubdivision;
 }
-
 std::vector<glm::vec3> calcSphereVertices(int n, std::vector<glm::vec3> sphereVerticesWithoutSubdivision, std::vector<GLushort> sphereIndicesWithoutSubdivision, glm::vec3 center)
 {
 	std::vector<glm::vec3> subTriangles; 
@@ -1149,7 +1224,10 @@ TransformConfig mSpaceShipTrans;
 mSpaceShipTrans.position = glm::vec3(60.0f,0.0f, 0.0f);
 
 ship.init(spaceShipVert, spaceShipFaceIndex,0.01f, planetGeom, mSpaceShipTrans, planetMat, baseRender);
-glDrawArrays(GL_LINES, 0, ship.norm.size());
+
+glm::vec3 start = glm::vec3(2.0f, 0.0f, 0.0f);
+
+box.init(start, 2.0f, 2.0f, 2.0f);
 	
   return true;
 }
@@ -1212,6 +1290,8 @@ void render()
 	moon_left.render(moon_left.program, projection, view);
 
 	ship.render(ship.program, projection, view);
+
+	box.render(box.program, projection, view);
 
 }
 
@@ -1309,6 +1389,9 @@ void glutKeyboard (unsigned char keycode, int x, int y)
 		init();
 		break;
 	case 'G':
+		break;
+	case 'n':
+		shipNormales = !shipNormales;
 		break;
     glutPostRedisplay();
 
