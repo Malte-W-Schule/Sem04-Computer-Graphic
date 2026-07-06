@@ -62,7 +62,6 @@ glm::vec3 RGBtoHSV(glm::vec3 input);
 glm::vec3 RGBtoCMY(glm::vec3 input);
 glm::vec3 HSVtoRGB(glm::vec3 input);
 glm::vec3 HSVtoCMY(glm::vec3 input);
-void readInLoop();
 
 class MySphere;
 class MyShip;
@@ -73,6 +72,8 @@ bool flatIsOn = true;
 bool shipNormales = false;
 bool planetRotate = true;
 bool isDepictionSolid = false;
+bool istBoxDisplayed = true;
+bool hasNormalen = true;
 
 int xRotation = 0;
 int yRotation = 0;
@@ -95,7 +96,7 @@ glm::mat4x4 projection;
 std::vector<GLushort> calcIndices(int n, std::vector<glm::vec3> subTriangles);
 std::vector<glm::vec3> calcSphereVertices(int n, std::vector<glm::vec3> sphereVerticesWithoutSubdivision, std::vector<GLushort> sphereIndicesWithoutSubdivision, glm::vec3 center);
 std::vector<glm::vec3> computeNormales();
-
+void findMinMaxVertexShip(Box& box, float skal);
 void renderSphere();
 //void initSphere();
 void renderNormales();
@@ -103,24 +104,13 @@ void renderKoords();
 void readObjLineByLine(const std::string& filename);
 void rotateVectorFromSphere(MySphere& middle, MySphere& toRotate, float orbitLength, float speed);
 void rotateVectorFromSphere(MySphere& middle, MyShip& toRotate, float orbitLength, float speed);
-
-
-
-
-
-
-
-
+void readInLoop();
 
 unsigned  lightIndex = 1;
 glm::vec4 lights[2] = {
 	glm::vec4(0.0f, 1.0f, 0.0f, 0.0f), // Richtungslicht
 	glm::vec4(0.0f, 0.0f, CZoom, 1.0f) // Punktlicht
 };
-
-
-
-// ================================================================================= Size =================================================================================
 
 /*
 Struct to hold data for object rendering.
@@ -518,6 +508,7 @@ private:
 	GLuint normalBuffer;
 	GLuint normalLineBuffer;
 	GLuint normalVAO;
+	GLuint normalColorBuffer;
 public:
 	glm::vec3 center;
 	
@@ -530,6 +521,7 @@ public:
 	glm::mat4 SphereModel;  // alles zsm
 
 	glm::mat4 skalierung;
+	glm::mat4 normalModell;
 
 	std::vector<glm::vec3> norm;
 
@@ -542,10 +534,11 @@ public:
 	glm::vec3 surfKs;
 
 	cg::GLSLProgram program;
+	cg::GLSLProgram normalProgram;
 
 	int indexCount = 10000;
 
-	MyShip(): vao(0), normalVAO(0), positionBuffer(0), colorBuffer(0), indexBuffer(0), normalBuffer(0), normalLineBuffer(0) {}
+	MyShip(): vao(0), normalVAO(0), positionBuffer(0), colorBuffer(0), indexBuffer(0), normalBuffer(0), normalLineBuffer(0), normalColorBuffer(0){}
 
 	bool init(std::vector<glm::vec3> vert, std::vector<GLushort> index, float skal, const GeometryConfig& geom, const TransformConfig& transform, const MaterialConfig& material, const RenderConfig& render) {
 
@@ -561,7 +554,6 @@ public:
 		this->orbitAngle = transform.orbitAngle;
 
 		this->has_axis = render.has_axis;
-
 
 		glm::vec3 color = material.color;
 
@@ -597,20 +589,52 @@ public:
 		//  SHADER ZEUG! Normalen zeichnen
 		// ==========================================
 
-		glGenVertexArrays(1, &normalVAO);
-		glBindVertexArray(normalVAO);
+		if(hasNormalen){
 
-		glGenBuffers(1, &normalLineBuffer);
-		glBindBuffer(GL_ARRAY_BUFFER, normalLineBuffer);
+			if (!normalProgram.compileShaderFromFile("shader/simple.vert", cg::GLSLShader::VERTEX)) {
+				std::cerr << normalProgram.log();
+				//	return false;
+			}
 
-		glBufferData(GL_ARRAY_BUFFER, norm.size() * sizeof(glm::vec3), norm.data(),GL_STATIC_DRAW);
+			if (!normalProgram.compileShaderFromFile("shader/simple.frag", cg::GLSLShader::FRAGMENT)) {
+				std::cerr << normalProgram.log();
+				//	return false;
+			}
 
-		GLint normalPos = glGetAttribLocation(programId, "position");
-		glEnableVertexAttribArray(normalPos);
-		glVertexAttribPointer(normalPos, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
+			if (!normalProgram.link()) {
+				std::cerr << normalProgram.log();
+				//	return false;
+			}
 
-		glBindVertexArray(0);
+			GLuint programIdNormal = normalProgram.getHandle();
 
+			std::vector<glm::vec3> colorsNormales;
+			// Für jeden generierten Punkt exakt einen Farbwert anlegen
+			for (size_t i = 0; i < norm.size(); i++) {
+				colorsNormales.push_back(glm::vec3(0.0f, 1.0f, 0.0f)); // Alles grün
+			}
+			glGenVertexArrays(1, &normalVAO);
+			glBindVertexArray(normalVAO);
+
+			glGenBuffers(1, &normalLineBuffer);
+			glBindBuffer(GL_ARRAY_BUFFER, normalLineBuffer);
+
+			glBufferData(GL_ARRAY_BUFFER, norm.size() * sizeof(glm::vec3), norm.data(),GL_STATIC_DRAW);
+			GLint normalPos = glGetAttribLocation(programIdNormal, "position");
+			glEnableVertexAttribArray(normalPos);
+			glVertexAttribPointer(normalPos, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
+
+			// === Color ===
+			glGenBuffers(1, &normalColorBuffer);
+			glBindBuffer(GL_ARRAY_BUFFER, normalColorBuffer);
+			glBufferData(GL_ARRAY_BUFFER, colorsNormales.size() * sizeof(glm::vec3), colorsNormales.data(), GL_STATIC_DRAW);
+			GLint col = glGetAttribLocation(programIdNormal, "color");
+			glEnableVertexAttribArray(col);
+			glVertexAttribPointer(col, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+			glBindVertexArray(0);
+		}
+		
 		// ==========================================
 		//  SHADER ZEUG! Ship
 		// ==========================================
@@ -690,8 +714,12 @@ public:
 		}
 		glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_SHORT, 0);
 
-		if (shipNormales)
+		if (shipNormales && hasNormalen)
 		{
+			glm::mat4 mvp = projection * view * SphereModel;
+
+			this->normalProgram.use();
+			normalProgram.setUniform("mvp", mvp);
 			glBindVertexArray(normalVAO);
 			glDrawArrays(GL_LINES, 0, norm.size());
 			glBindVertexArray(0);
@@ -703,11 +731,14 @@ public:
 };
 
 std::vector<glm::vec3> computeNormales() {
-	spaceShipVert;		//echter wert
-	spaceShipFaceIndex;	//index
-	spaceShipNormales;	//index
-	tempNormales;		//echter wert
+
 	std::vector<glm::vec3> normalen;
+
+	if(tempNormales.empty()){
+		std::cout << "Liste mit Normalen ist leer" << std::endl;
+		hasNormalen = false;
+		return normalen;
+	}
 
 	std::cout << "vert größe" << spaceShipVert.size() << "normalen größe" << tempNormales.size() << std::endl;
 
@@ -718,7 +749,6 @@ std::vector<glm::vec3> computeNormales() {
 
 		normalen.push_back(start);
 		normalen.push_back(end);
-
 	}
 	return normalen;
 }
@@ -743,9 +773,9 @@ void rotateVectorFromSphere(MySphere& middle, MyShip& toRotate, float orbitLengt
 	// WICHTIG: Im Gegensatz zur Kugel multiplizieren wir hier die Skalierung des Schiffs mit rein!
 	toRotate.SphereModel = toRotate.translationModel * toRotate.SphereRotationModel * toRotate.AxisInclinedModel;
 
-	toRotate.SphereModel = toRotate.translationModel * toRotate.SphereRotationModel * toRotate.AxisInclinedModel * toRotate.skalierung;
-	
+	toRotate.SphereModel = toRotate.translationModel * toRotate.SphereRotationModel * toRotate.AxisInclinedModel * toRotate.skalierung;	
 }
+
 // ================================================================================= Ende SpaceShip =================================================================================
 
 // ================================================================================= Anfang Box ======================================================================================
@@ -759,7 +789,6 @@ private:
 	GLuint colorBuffer;
 	GLuint indexBuffer;
 	GLuint normalBuffer;
-
 public:
 
 	glm::vec3 center;
@@ -788,26 +817,24 @@ public:
 
 	Box() : vao(0), positionBuffer(0), colorBuffer(0), indexBuffer(0), normalBuffer(0), indexCount(0){}
 
-	void init(glm::vec3 center, float lengthX, float lengthY, float lengthZ) {
-		// 1. Halbe Längen berechnen
-		float hX = lengthX / 2.0f;
-		float hY = lengthY / 2.0f;
-		float hZ = lengthZ / 2.0f;
+	void init(float xMin, float xMax, float yMin, float yMax, float zMin, float zMax) {
+		// 1. Center bleibt starr im Ursprung
+		glm::vec3 center = glm::vec3(0.0f, 0.0f, 0.0f);
 
-		// 2. Alle 8 Eckpunkte relativ zum Center berechnen
-		// Unten (Negativ Z)
-		glm::vec3 lbb = center + glm::vec3(-hX, -hY, -hZ); // Links-Unten-Hinten
-		glm::vec3 rbb = center + glm::vec3( hX, -hY, -hZ); // Rechts-Unten-Hinten
-		glm::vec3 ltb = center + glm::vec3(-hX,  hY, -hZ); // Links-Oben-Hinten
-		glm::vec3 rtb = center + glm::vec3( hX,  hY, -hZ); // Rechts-Oben-Hinten
+		// 2. Alle 8 Eckpunkte DIREKT aus den Min/Max-Grenzen zusammensetzen
+		// Unten / Hinten (nutzt yMin und zMin)
+		glm::vec3 lbb = glm::vec3(xMin, yMin, zMin); // Links-Unten-Hinten
+		glm::vec3 rbb = glm::vec3(xMax, yMin, zMin); // Rechts-Unten-Hinten
+		glm::vec3 ltb = glm::vec3(xMin, yMax, zMin); // Links-Oben-Hinten
+		glm::vec3 rtb = glm::vec3(xMax, yMax, zMin); // Rechts-Oben-Hinten
 
-		// Oben (Positiv Z)
-		glm::vec3 lbf = center + glm::vec3(-hX, -hY,  hZ); // Links-Unten-Vorne
-		glm::vec3 rbf = center + glm::vec3( hX, -hY,  hZ); // Rechts-Unten-Vorne
-		glm::vec3 ltf = center + glm::vec3(-hX,  hY,  hZ); // Links-Oben-Vorne
-		glm::vec3 rtf = center + glm::vec3( hX,  hY,  hZ); // Rechts-Oben-Vorne
+		// Oben / Vorne (nutzt yMax/yMin und zMax)
+		glm::vec3 lbf = glm::vec3(xMin, yMin, zMax); // Links-Unten-Vorne
+		glm::vec3 rbf = glm::vec3(xMax, yMin, zMax); // Rechts-Unten-Vorne
+		glm::vec3 ltf = glm::vec3(xMin, yMax, zMax); // Links-Oben-Vorne
+		glm::vec3 rtf = glm::vec3(xMax, yMax, zMax); // Rechts-Oben-Vorne
 
-		// 3. Die 12 Linien (Kanten) der Box für GL_LINES füllen
+		// 3. Die 12 Linien (Kanten) der Box für GL_LINES füllen (unverändert)
 		// Unterer Ring
 		verticesBox.push_back(lbb); verticesBox.push_back(rbb);
 		verticesBox.push_back(rbb); verticesBox.push_back(rbf);
@@ -825,8 +852,7 @@ public:
 		verticesBox.push_back(rbb); verticesBox.push_back(rtb);
 		verticesBox.push_back(lbf); verticesBox.push_back(ltf);
 		verticesBox.push_back(rbf); verticesBox.push_back(rtf);
-		
-		
+
 		// ==========================================
 		//  SHADER ZEUG! Box
 		// ==========================================
@@ -879,6 +905,29 @@ public:
 // ================================================================================= Ende Box =================================================================================
 
 Box box;
+
+void findMinMaxVertexShip(Box& box, float skal) {
+
+	if (spaceShipVert.empty()) return;
+
+	float xMin = spaceShipVert[0].x; float xMax = spaceShipVert[0].x;
+	float yMin = spaceShipVert[0].y; float yMax = spaceShipVert[0].y;
+	float zMin = spaceShipVert[0].z; float zMax = spaceShipVert[0].z;
+
+	// Min/Max suchen
+	for (const auto& vertex : spaceShipVert) {
+		if (vertex.x > xMax) xMax = vertex.x;
+		if (vertex.x < xMin) xMin = vertex.x;
+
+		if (vertex.y > yMax) yMax = vertex.y;
+		if (vertex.y < yMin) yMin = vertex.y;
+
+		if (vertex.z > zMax) zMax = vertex.z;
+		if (vertex.z < zMin) zMin = vertex.z;
+	}
+
+	box.init(xMin*skal, xMax*skal, yMin*skal, yMax*skal, zMin * skal, zMax * skal);
+}
 
 // ================================================================================= Start OBJ einlesen =================================================================================
 void readObjLineByLine(const std::string& filename) {
@@ -967,50 +1016,6 @@ void readObjLineByLine(const std::string& filename) {
 // ================================================================================= Ende OBJ einlesen =================================================================================
 
 
-// ================================================================================= RENDER SPHERE =================================================================================
-/*void renderSphere()
-{   // Create mvp.
-    glm::mat4x4 mvp = projection * view * sphere.model;
-
-    // Bind the shader program and set uniform(s).
-    program.use();
-	sun.program.use();    program.setUniform("mvp", mvp);
-
-    // Bind vertex array object so we can render the 1 triangle.
-    glBindVertexArray(sphere.vao);
-    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-    glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_SHORT, 0);
-    glBindVertexArray(0);
-}
-
-void renderNormales() {
-	glm::mat4x4 mvp = projection * view * normales.model;
-
-	// Bind the shader program and set uniform(s).
-	program.use();
-	program.setUniform("mvp", mvp);
-
-	// Bind vertex array object so we can render the 1 triangle.
-	glBindVertexArray(normales.vao);
-	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-	glDrawElements(GL_LINES, indexCountNormals, GL_UNSIGNED_SHORT, 0);
-	glBindVertexArray(0);
-}
-void renderKoords() { 
-
-    glm::mat4x4 mvp = projection * view * koords.model;
-
-    // Bind the shader program and set uniform(s).
-    program.use(); 
-    program.setUniform("mvp", mvp);
-
-    // Bind vertex array object so we can render the 1 triangle.
-    glBindVertexArray(koords.vao);
-    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-    glDrawElements(GL_LINES, 6, GL_UNSIGNED_SHORT, 0);
-    glBindVertexArray(0);
-}*/
-
 // ================================================================================= Berechnungen Kugel =================================================================================
 std::vector<GLushort> calcIndices(int n, std::vector<glm::vec3> subTriangles) { 
 	std::vector<GLushort> sphereIndicesWithSubdivision;
@@ -1095,144 +1100,148 @@ std::vector<glm::vec3> calcSphereVertices(int n, std::vector<glm::vec3> sphereVe
 
 	return subTriangles;
 }
-
-
 // ================================================================================= INIT =================================================================================
-
 
 /*
  Initialization. Should return true if everything is ok and false if something went wrong.
  */
 bool init()
 {
-  // OpenGL: Set "background" color and enable depth testing.
-  glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
-  glEnable(GL_DEPTH_TEST);
- 
-  glm::vec3 eye(0.0f, 0.0f, CZoom);
-  glm::vec3 center(0.0f, 0.0f, 0.0f);
-  glm::vec3 up(0.0f, 1.0f, 0.0f);
-  
-  view = glm::lookAt(eye, center, up);
-  
-  // =======================================================================INit sphre auf crack:
-  //MySphere mySphere; //neues globales Kugel-Objekt
-  float currentRadius = 0.5f; // Optional: um Radius für die Tastatur zu speichern
-  int currentSubdivisions = 3; // Optional: um n für die Tastatur zu speichern
-  
+	// OpenGL: Set "background" color and enable depth testing.
+	glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
+	glEnable(GL_DEPTH_TEST);
 
-  
-// --- GEMEINSAME BASIS-WERTE ---
+	glm::vec3 eye(0.0f, 0.0f, CZoom);
+	glm::vec3 center(0.0f, 0.0f, 0.0f);
+	glm::vec3 up(0.0f, 1.0f, 0.0f);
+
+	view = glm::lookAt(eye, center, up);
+
+	// =======================================================================INit sphre auf crack:
+	//MySphere mySphere; //neues globales Kugel-Objekt
+	float currentRadius = 0.5f; // Optional: um Radius für die Tastatur zu speichern
+	int currentSubdivisions = 3; // Optional: um n für die Tastatur zu speichern
+
+
+
+	// --- GEMEINSAME BASIS-WERTE ---
 	GeometryConfig baseGeom;
-baseGeom.subdivisions = currentSubdivisions;
+	baseGeom.subdivisions = currentSubdivisions;
 
-RenderConfig baseRender;
+	RenderConfig baseRender;
 
-MaterialConfig baseMat;
-baseMat.color  = glm::vec3(1.0f, 1.0f, 0.0f);
-baseMat.surfKa = glm::vec3(0.1f, 0.1f, 0.1f);
-baseMat.surfKs = glm::vec3(1.0f, 1.0f, 1.0f);
+	MaterialConfig baseMat;
+	baseMat.color = glm::vec3(1.0f, 1.0f, 0.0f);
+	baseMat.surfKa = glm::vec3(0.1f, 0.1f, 0.1f);
+	baseMat.surfKs = glm::vec3(1.0f, 1.0f, 1.0f);
 
-if (flatIsOn) {
-	baseMat.pathFrag = "shader/shadedFlat.frag";
-	baseMat.pathVert = "shader/shadedFlat.vert";
+	if (flatIsOn) {
+		baseMat.pathFrag = "shader/shadedFlat.frag";
+		baseMat.pathVert = "shader/shadedFlat.vert";
+	}
+	else {
+		baseMat.pathFrag = "shader/shadedGouraud.frag";
+		baseMat.pathVert = "shader/shadedGouraud.vert";
+	}
+
+	// ==========================================
+	// MATERIALIEN FÜR DIE VERSCHIEDENEN KÖRPER 
+	// ==========================================
+	MaterialConfig sunMat = baseMat;
+	sunMat.surfKd = glm::vec3(1.0f, 1.0f, 0.0f); // Gelb
+
+	MaterialConfig planetMat = baseMat;
+	planetMat.surfKd = glm::vec3(0.8f, 0.1f, 0.1f); // Rötlich
+
+	MaterialConfig moonMat = baseMat;
+	moonMat.surfKd = glm::vec3(0.2f, 0.2f, 0.2f); // Grau
+
+	// ==========================================
+	// SONNE
+	// ==========================================
+	GeometryConfig sunGeom = baseGeom;
+	sunGeom.radius = currentRadius;
+
+	TransformConfig sunTrans; // Standard ist glm::vec3(0.0f), passt also für die Mitte
+
+	RenderConfig sunRender = baseRender;
+	sunRender.has_axis = true;
+
+	sun.init(sunGeom, sunTrans, sunMat, sunRender);
+
+	// ==========================================
+	// PLANET RECHTS
+	// ==========================================
+	GeometryConfig planetGeom = baseGeom;
+	planetGeom.radius = 0.3f;
+
+	TransformConfig pRightTrans;
+	pRightTrans.position = glm::vec3(2.0f, 0.0f, 0.0f);
+	pRightTrans.initialDegree = 45.0f;
+
+	RenderConfig pRightRender = baseRender;
+	pRightRender.has_axis = true;
+
+	planet_right.init(planetGeom, pRightTrans, planetMat, pRightRender);
+
+	// ==========================================
+	// PLANET LINKS
+	// ==========================================
+	TransformConfig pLeftTrans;
+	pLeftTrans.position = glm::vec3(-2.0f, 0.0f, 0.0f);
+	pLeftTrans.orbitAngle = 180.0f;
+
+	RenderConfig pLeftRender = baseRender;
+	pLeftRender.has_axis = true;
+
+	// Nutzt dasselbe planetGeom wie der rechte Planet!
+	planet_left.init(planetGeom, pLeftTrans, planetMat, pLeftRender);
+
+	// ==========================================
+	// MOND RECHTS
+	// ==========================================
+	GeometryConfig moonGeom = baseGeom;
+	moonGeom.radius = 0.1f;
+
+	TransformConfig mRightTrans;
+	mRightTrans.position = glm::vec3(2.5f, 0.0f, 0.0f);
+
+	moon_right.init(moonGeom, mRightTrans, moonMat, baseRender);
+
+	// ==========================================
+	// MOND LINKS
+	// ==========================================
+	TransformConfig mLeftTrans;
+	mLeftTrans.position = glm::vec3(-2.1f, 0.0f, 0.0f);
+
+	// gleiche moon geom wie rechter moond
+	moon_left.init(moonGeom, mLeftTrans, moonMat, baseRender);
+
+
+	// ==========================================
+	// Space Ship
+	// ==========================================
+
+	float skal = 0.01f;
+
+	TransformConfig mSpaceShipTrans;
+	mSpaceShipTrans.position = glm::vec3(2.0f, 0.0f, 0.0f);
+
+	ship.init(spaceShipVert, spaceShipFaceIndex, skal, planetGeom, mSpaceShipTrans, planetMat, baseRender);
+
+
+	// ==========================================
+	// box size berechnen
+	// ==========================================
+
+	findMinMaxVertexShip(box, skal);
+
+	/*
+   box.init(start, xValue, yValue, zValue);
+   }*/
+
+	return true;
 }
-else {
-	baseMat.pathFrag = "shader/shadedGouraud.frag";
-	baseMat.pathVert = "shader/shadedGouraud.vert";
-}
-
-// ==========================================
-// MATERIALIEN FÜR DIE VERSCHIEDENEN KÖRPER 
-// ==========================================
-MaterialConfig sunMat = baseMat;
-sunMat.surfKd = glm::vec3(1.0f, 1.0f, 0.0f); // Gelb
-
-MaterialConfig planetMat = baseMat;
-planetMat.surfKd = glm::vec3(0.8f, 0.1f, 0.1f); // Rötlich
-
-MaterialConfig moonMat = baseMat;
-moonMat.surfKd = glm::vec3(0.2f, 0.2f, 0.2f); // Grau
-
-// ==========================================
-// SONNE
-// ==========================================
-GeometryConfig sunGeom = baseGeom;
-sunGeom.radius = currentRadius;
-
-TransformConfig sunTrans; // Standard ist glm::vec3(0.0f), passt also für die Mitte
-
-RenderConfig sunRender = baseRender;
-sunRender.has_axis = true;
-
-sun.init(sunGeom, sunTrans, sunMat, sunRender);
-
-// ==========================================
-// PLANET RECHTS
-// ==========================================
-GeometryConfig planetGeom = baseGeom;
-planetGeom.radius = 0.3f;
-
-TransformConfig pRightTrans;
-pRightTrans.position = glm::vec3(2.0f, 0.0f, 0.0f);
-pRightTrans.initialDegree = 45.0f;
-
-RenderConfig pRightRender = baseRender;
-pRightRender.has_axis = true;
-
-planet_right.init(planetGeom, pRightTrans, planetMat, pRightRender);
-
-// ==========================================
-// PLANET LINKS
-// ==========================================
-TransformConfig pLeftTrans;
-pLeftTrans.position = glm::vec3(-2.0f, 0.0f, 0.0f);
-pLeftTrans.orbitAngle = 180.0f;
-
-RenderConfig pLeftRender = baseRender;
-pLeftRender.has_axis = true;
-
-// Nutzt dasselbe planetGeom wie der rechte Planet!
-planet_left.init(planetGeom, pLeftTrans, planetMat, pLeftRender);
-
-// ==========================================
-// MOND RECHTS
-// ==========================================
-GeometryConfig moonGeom = baseGeom;
-moonGeom.radius = 0.1f;
-
-TransformConfig mRightTrans;
-mRightTrans.position = glm::vec3(2.5f, 0.0f, 0.0f);
-
-moon_right.init(moonGeom, mRightTrans, moonMat, baseRender);
-
-// ==========================================
-// MOND LINKS
-// ==========================================
-TransformConfig mLeftTrans;
-mLeftTrans.position = glm::vec3(-2.1f, 0.0f, 0.0f);
-
-// gleiche moon geom wie rechter moond
-moon_left.init(moonGeom, mLeftTrans, moonMat, baseRender);
-
-
-// ==========================================
-// Space Ship
-// ==========================================
-
-TransformConfig mSpaceShipTrans;
-mSpaceShipTrans.position = glm::vec3(60.0f,0.0f, 0.0f);
-
-ship.init(spaceShipVert, spaceShipFaceIndex,0.01f, planetGeom, mSpaceShipTrans, planetMat, baseRender);
-
-glm::vec3 start = glm::vec3(2.0f, 0.0f, 0.0f);
-
-box.init(start, 2.0f, 2.0f, 2.0f);
-	
-  return true;
-}
-
-bool start = true;
 
 // ================================================================================= RENDER =================================================================================
 /*
@@ -1291,8 +1300,10 @@ void render()
 
 	ship.render(ship.program, projection, view);
 
-	box.render(box.program, projection, view);
-
+	if(istBoxDisplayed){
+		box.render(box.program, projection, view);
+		box.Model = ship.translationModel * ship.SphereRotationModel * ship.AxisInclinedModel;
+	}
 }
 
 void glutDisplay ()
@@ -1393,12 +1404,13 @@ void glutKeyboard (unsigned char keycode, int x, int y)
 	case 'n':
 		shipNormales = !shipNormales;
 		break;
+	case 'b':
+		istBoxDisplayed = !istBoxDisplayed;
+		break;
     glutPostRedisplay();
 
     }
 }
-
-
 
 // ================================================================================= MAIN =================================================================================
 
