@@ -675,7 +675,8 @@ public:
 
 		this->translationModel = glm::translate(glm::mat4(1.0f), transform.position);
 		this->AxisInclinedModel = glm::rotate(glm::mat4(1.0f), glm::radians(degree), glm::vec3(0.0f, 0.0f, 1.0f));
-		this->AxisInclinedModel = glm::rotate(this->AxisInclinedModel, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+		//Ship in Bewegungsrichtung rotieren
+		//this->AxisInclinedModel = glm::rotate(this->AxisInclinedModel, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 		this->skalierung = glm::scale(glm::mat4(1.0f), glm::vec3(skal, skal, skal));
 		this->SphereModel = translationModel * AxisInclinedModel * skalierung;
 		
@@ -1285,7 +1286,7 @@ void render()
 
 	rotateVectorFromSphere(sun, ship, 1.5f, (deltaTime * planetSpeed * 20.0f));
 
-	ship.AxisInclinedModel = glm::rotate(ship.AxisInclinedModel, glm::radians((deltaTime * planetSpeed * 20.0f)), glm::vec3(0.0f, 1.0f, 0.0f));
+	//ship.AxisInclinedModel = glm::rotate(ship.AxisInclinedModel, glm::radians((deltaTime * planetSpeed * 20.0f)), glm::vec3(0.0f, 1.0f, 0.0f));
 
 
     //planet_right.axisRotationModel = glm::rotate(planet_right.axisRotationModel, glm::radians(-0.05f), glm::vec3(0.0f, 1.0f, 0.0f));
